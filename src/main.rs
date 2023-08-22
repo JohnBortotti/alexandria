@@ -20,28 +20,22 @@
 //      -> schema operations (create, delete, read, update??)
 //      -> implement transactions for row operations (ACID)
 
+#[allow(dead_code)]
 mod raft;
-use tokio::sync::mpsc;
+
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
 
 #[tokio::main]
 async fn main() {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let (node_tx, node_rx) = mpsc::unbounded_channel::<raft::message::Message>();
+    let _ = raft::server::Node::new("alo", vec!(), raft::server::Log::new(), tx.clone()).await;
 
-    let _ = raft::Node::new(
-        "test",
-        vec!(),
-        raft::Log::new(),
-        node_tx.clone()
-    ).await;
-
-
-    let mut rx_stream = UnboundedReceiverStream::new(node_rx);
+    let mut tx = UnboundedReceiverStream::new(rx);
 
     loop {
-        while let Some(msg) = rx_stream.next().await {
+        while let Some(msg) = tx.next().await {
             println!("{:?}", msg);
         }
     }
