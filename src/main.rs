@@ -29,8 +29,7 @@ use tokio_stream::StreamExt as _;
 #[tokio::main]
 async fn main() {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-    let _ = raft::server::Node::new("alo", vec!(), raft::server::Log::new(), tx.clone()).await;
+    let _ = raft::node::Node::new("alo", vec!(), raft::node::Log::new(), tx.clone()).await;
 
     let mut tx = UnboundedReceiverStream::new(rx);
 
