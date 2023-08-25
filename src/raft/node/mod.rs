@@ -3,13 +3,25 @@ use super::message::Message;
 use super::state_machine::{StateDriver, Instruction};
 
 mod candidate;
+mod follower;
+mod leader;
 
+
+const HEARTBEAT_INTERVAL: u64 = 1;
+const ELECTION_TIMEOUT_MIN: u64 = 8 * HEARTBEAT_INTERVAL;
+const ELECTION_TIMEOUT_MAX: u64 = 16 * HEARTBEAT_INTERVAL;
+
+pub struct Entry {
+    index: u64,
+    term: u64,
+    command: Option<Vec<u8>>,
+}
 pub struct Log {
     last_index: u64,
     last_term: u64,
     commit_index: u64,
     commit_term: u64,
-    entries: Vec<(u64, u64)>
+    entries: Box<Vec<Entry>>
 }
 
 impl Log {
@@ -19,39 +31,34 @@ impl Log {
             last_term: 0, 
             commit_index: 0, 
             commit_term: 0, 
-            entries: vec!()
+            entries: Box::new(vec!())
         }
 
     }
+
+    pub fn append(&mut self, term: u64, command: Option<Vec<u8>>) {
+        let entry = Entry {
+            index: self.last_index+1,
+            term,
+            command
+        };
+
+        self.last_index = self.last_index+1;
+        self.last_term = term;
+        self.entries.push(entry);
+    }
+
+    // pub fn commit(mut self, entry: Entry) {
+    //
+    // }
 }
 
 pub enum Node {
-    Follower(Role<Follower>),
-    Candidate(Role<Candidate>),
-    Leader(Role<Leader>),
+    Follower(Role<follower::Follower>),
+    Candidate(Role<candidate::Candidate>),
+    Leader(Role<leader::Leader>),
 }
 
-pub struct Role<T> {
-    id: String,
-    peers: Vec<String>,
-    log: Log,
-    role: T,
-    node_tx: mpsc::UnboundedSender<Message>,
-    state_tx: mpsc::UnboundedSender<Instruction>,
-}
-
-pub struct Follower {
-    test: u64
-}
-
-impl Follower {
-    pub fn new() -> Self { 
-        Self { test: 12 }
-    }
-}
-
-pub struct Leader {}
-impl Role<Leader> {}
 
 impl Node {
     pub async fn new(
@@ -65,21 +72,101 @@ impl Node {
         let driver = StateDriver::new(state_rx, node_tx.clone());
         tokio::spawn(driver.run());
 
-        let node = Role::<Follower> {
+        let node = Role::<follower::Follower> {
             id: id.to_string(),
             peers,
             log,
-            role: Follower::new(),
+            role: follower::Follower::new(None, None, 5),
             state_tx,
             node_tx
         };
 
-        return node.into();
+        if node.peers.is_empty() {
+            node.become_role(leader::Leader::new(vec!())).into()
+        } else {
+            node.into()
+        }
+
+    }
+
+    pub fn tick(self) -> Self {
+        match self {
+            Node::Candidate(n) => n.tick(),
+            Node::Follower(n) => n.tick(),
+            Node::Leader(n) => n.tick(),
+        }
     }
 }
 
-impl From<Role<Follower>> for Node {
-    fn from(rn: Role<Follower>) -> Self {
-        Node::Follower(rn)
+pub struct Role<T> {
+    id: String,
+    peers: Vec<String>,
+    log: Log,
+    role: T,
+    node_tx: mpsc::UnboundedSender<Message>,
+    state_tx: mpsc::UnboundedSender<Instruction>,
+}
+
+impl<R> Role<R> {
+    fn become_role<T>(self, role: T) -> Role<T> {
+        Role {
+            id: self.id,
+            peers: self.peers,
+            log: self.log,
+            node_tx: self.node_tx,
+            state_tx: self.state_tx,
+            role   
+        }
     }
+}
+
+impl From<Role<follower::Follower>> for Node {
+    fn from(r: Role<follower::Follower>) -> Self {
+        Node::Follower(r)
+    }
+}
+
+impl From<Role<leader::Leader>> for Node {
+    fn from(r: Role<leader::Leader>) -> Self {
+        Node::Leader(r)
+    }
+}
+
+impl From<Role<candidate::Candidate>> for Node {
+    fn from(r: Role<candidate::Candidate>) -> Self {
+        Node::Candidate(r)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn new_node() {
+      let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+      let node = Node::new("a", vec!("a".to_string(), "b".to_string()), Log::new(), tx.clone()).await;
+
+      match node {
+          Node::Follower(node) => {
+              assert_eq!(node.id, "a".to_owned());
+              assert_eq!(node.peers, vec!("a".to_string(), "b".to_string()));
+          }
+          _ => panic!("Expected node to start as follower"),
+      }
+  }
+
+  #[tokio::test]
+  async fn new_node_become_leader() {
+      let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+      let node = Node::new("a", vec!(), Log::new(), tx.clone()).await;
+
+      match node {
+          Node::Leader(node) => {
+              assert_eq!(node.id, "a".to_owned());
+              assert_eq!(node.peers.is_empty(), true);
+          }
+          _ => panic!("Expected node to become leader"),
+      }
+  }
 }

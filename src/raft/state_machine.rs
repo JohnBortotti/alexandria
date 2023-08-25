@@ -1,7 +1,7 @@
 use tokio::sync::mpsc::{ UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
-use super::message::{Message, NodeAddr};
+use super::message::{Message, Address};
 
 #[derive(Clone, Debug)]
 pub struct Entry {
@@ -14,8 +14,8 @@ pub struct Entry {
 pub enum Instruction {
     Abort,
     Append { entry: Entry },
-    Notify { id: Vec<u8>, address: NodeAddr},
-    Vote { term: u64, address: NodeAddr}
+    Notify { id: Vec<u8>, address: Address},
+    Vote { term: u64, address: Address}
 }
 
 pub struct StateDriver {

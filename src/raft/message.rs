@@ -1,17 +1,18 @@
 #[derive(Debug)]
 pub struct Message {
     pub term: u64,
-    pub from: NodeAddr,
-    pub to: NodeAddr,
-    // pub event: Event
+    pub from: Address,
+    pub to: Address,
+    pub event: Event
 }
 
 impl Message {
-    pub fn new(term: u64, from: NodeAddr, to: NodeAddr) -> Self {
+    pub fn new(term: u64, from: Address, to: Address, event: Event) -> Self {
         Self {
             term,
             from,
-            to
+            to,
+            event
         }
     }
 
@@ -19,13 +20,13 @@ impl Message {
 }
 
 #[derive(Debug)]
-pub enum NodeAddr {
+pub enum Address {
     Broadcast,
     Peer(String)
 }
 
 #[derive(Debug)]
 pub enum Event {
-    Heartbeat,
+    Heartbeat { index: u64, term: u64 },
     SoliciteVote
 }

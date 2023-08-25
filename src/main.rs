@@ -20,22 +20,19 @@
 //      -> schema operations (create, delete, read, update??)
 //      -> implement transactions for row operations (ACID)
 
+// ticks
+// set tick from miliseconds
+// set tick intervals (steps and elections)
+// create tokio timer (on node eventLoop)
+// implement each role tick
+
 #[allow(dead_code)]
 mod raft;
 
-use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_stream::StreamExt as _;
+use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() {
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    let _ = raft::node::Node::new("alo", vec!(), raft::node::Log::new(), tx.clone()).await;
-
-    let mut tx = UnboundedReceiverStream::new(rx);
-
-    loop {
-        while let Some(msg) = tx.next().await {
-            println!("{:?}", msg);
-        }
-    }
+    let server = raft::server::Server::new("a", HashMap::new(), raft::node::Log::new()).await;
+    server.serve().await;
 }
