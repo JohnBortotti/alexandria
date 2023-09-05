@@ -1,14 +1,12 @@
 use super::{Role, Node, candidate::Candidate};
 use super::super::{message::Event, message::Message, message::Address};
 
-
 pub struct Follower {
-    leader: Option<String>,
+    pub leader: Option<String>,
     voted: Option<String>,
     leader_seen_ticks: u64,
     leader_seen_timeout: u64
 }
-
 
 impl Follower {
     pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self { 
@@ -27,12 +25,37 @@ impl Role<Follower> {
         }
         
         match msg.event {
-            Event::Heartbeat { index: _, term } => {
+            Event::AppendEntries { index: _, term } => {
                 if self.is_leader(&msg.from) {
                     self.log.append(term, None);
                 }
             },
-            _ => panic!("Message event not defined"),
+            Event::RequestVote { term } => {
+                if term > self.log.last_term {
+                    let vote_msg = match msg.from {
+                        Address::Peer(sender) => {
+                            Message::new(
+                                term, 
+                                Address::Peer(self.id.clone()), 
+                                Address::Broadcast, 
+                                Event::Vote{term, voted_for: sender}
+                                );
+                        },
+                        _ => panic!("Unexpected sender address"),
+                    };
+
+                    // TODO: broadcast vote_msg
+
+                    //     Message::new(
+                    //     term, 
+                    //     Address::Peer(self.id), 
+                    //     Address::Broadcast, 
+                    //     Event::Vote{term, voted_for: msg.from}
+                    //     );
+                    // println!("Vote for");
+                }
+            },
+            _ => panic!("Unexpected event message")
         };
 
         Ok(self.into())
@@ -42,6 +65,7 @@ impl Role<Follower> {
         self.role.leader_seen_ticks += 1;
 
         if self.role.leader_seen_ticks >= self.role.leader_seen_timeout {
+            self.log.last_term += 1;
             self.become_role(Candidate::new(5, 1)).into()
         } else {
             self.into()
@@ -114,6 +138,7 @@ mod tests {
       match node {
           Node::Candidate(candidate) => {
               assert_eq!(candidate.role.votes, 1);
+              assert_eq!(candidate.log.last_term, 1);
           },
           _ => panic!("Expected node to become candidate after seen ticks timeout")
       }
@@ -128,7 +153,7 @@ mod tests {
       match node {
           Node::Follower(follower) => {
               let msg = Message {
-                  event: Event::Heartbeat{index: 1, term: 1},
+                  event: Event::AppendEntries{index: 1, term: 1},
                   term: 1,
                   to: Address::Peer("b".into()),
                   from: Address::Peer("a".into())
@@ -139,6 +164,7 @@ mod tests {
               match follower {
                   Ok(Node::Follower(follower)) => {
                       assert_eq!(follower.role.leader_seen_ticks, 0);
+                      assert_eq!(follower.role.leader, Some("a".into()))
                   },
                   _ => panic!("Expected node to be follower")
               };

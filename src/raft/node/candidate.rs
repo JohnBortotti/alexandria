@@ -1,4 +1,5 @@
-use super::{Role, Node};
+use super::{Role, Node, follower::Follower};
+use super::super::{message::Event, message::Message, message::Address::Peer};
 
 pub struct Candidate {
     election_ticks: u64,
@@ -13,14 +14,30 @@ impl Candidate {
 }
 
 impl Role<Candidate> {
-    pub fn step(self) -> Node {
-        self.into()
+    pub fn step(self, msg: Message) -> Result<Node, &'static str> {
+        match msg.event {
+            Event::AppendEntries{index: _, term} => {
+                if term >= self.log.last_term {
+                    let address = match msg.from {
+                        Peer(addr) => addr.to_string(),
+                        _ => panic!("Unexpected Address")
+                    };
+
+                    return Ok(self.become_role(Follower::new(Some(address), None, 5)).into())
+                } else {
+                    return Ok(self.into())
+                }
+
+            },
+            _ => panic!("Message event not defined"),
+        };
     }
     
     pub fn tick(mut self) -> Node {
         self.role.election_ticks += 1;
 
         if self.role.election_ticks >= self.role.election_timeout {
+            self.log.last_term += 1;
             self.role = Candidate::new(self.role.election_timeout, 1);
             self.into()
         } else {
@@ -81,12 +98,37 @@ mod tests {
           Node::Candidate(candidate) => {
               assert_eq!(candidate.role.election_ticks, 0);
               assert_eq!(candidate.role.votes, 1);
+              assert_eq!(candidate.log.last_term, 1);
           }
           _ => panic!("Expected node to be Candidate")
 
       }
   }
 
+  #[test]
+  fn candidate_become_follower_by_heartbeat() {
+      let (candidate, _, _) = setup();
 
+      let msg = Message {
+          event: Event::AppendEntries{index: 1, term: 2},
+          term: 2,
+          to: Peer("b".into()),
+          from: Peer("c".into())
+      };
+
+      let node = candidate.step(msg);
+
+      match node {
+          Ok(Node::Follower(follower)) => {
+              assert_eq!(follower.role.leader, Some("c".into()))
+          },
+          _ => panic!("Expected node to be Follower"),
+      }
+  }
+
+  // #[test]
+  // fn candidate_become_leader() {
+  //     let (candidate, _,  _) = setup();
+  // }
 
 }

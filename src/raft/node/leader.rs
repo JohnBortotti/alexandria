@@ -1,5 +1,6 @@
 use super::{Role, Node};
 use std::collections::HashMap;
+use super::super::message::Message;
 
 pub struct Leader {
     peer_last_index: HashMap<String, u64>
@@ -27,8 +28,10 @@ impl Role<Leader> {
     // pub fn step(mut self) -> Node {}
 
     pub fn tick(self) -> Node  {
-        println!("alo");
-
         self.into()
     }
+
+    pub fn step(self, msg: Message) -> Result<Node, &'static str> {
+        Ok(self.into())
+    } 
 }
