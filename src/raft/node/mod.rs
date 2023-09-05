@@ -6,8 +6,9 @@ mod candidate;
 mod follower;
 mod leader;
 
-
 const HEARTBEAT_INTERVAL: u64 = 1;
+
+// TODO: randomize election timeout to prevent infinite vote splitting
 const ELECTION_TIMEOUT_MIN: u64 = 8 * HEARTBEAT_INTERVAL;
 const ELECTION_TIMEOUT_MAX: u64 = 16 * HEARTBEAT_INTERVAL;
 
@@ -16,6 +17,7 @@ pub struct Entry {
     term: u64,
     command: Option<Vec<u8>>,
 }
+
 pub struct Log {
     last_index: u64,
     last_term: u64,
@@ -48,6 +50,7 @@ impl Log {
         self.entries.push(entry);
     }
 
+    // TODO: commit log
     // pub fn commit(mut self, entry: Entry) {
     //
     // }
@@ -94,6 +97,14 @@ impl Node {
             Node::Candidate(n) => n.tick(),
             Node::Follower(n) => n.tick(),
             Node::Leader(n) => n.tick(),
+        }
+    }
+
+    pub fn step(self, msg: Message) -> Result<Node, &'static str> {
+        match self {
+            Node::Candidate(n) => n.step(msg),
+            Node::Follower(n) => n.step(msg),
+            Node::Leader(n) => n.step(msg),
         }
     }
 }
