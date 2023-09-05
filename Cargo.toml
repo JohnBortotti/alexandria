@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 tokio = {version = "1.32.0", features = ["full"]}
 tokio-stream = {version = "0.1.14", features = ["net"]}
-serde = "1.0.188"
+serde = { version = "1.0.188", features = ["derive"] }
+ron = "0.8"
 tokio-serde = "0.8.0"
