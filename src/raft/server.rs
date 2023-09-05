@@ -1,12 +1,10 @@
-use super::{node, message, message::Message};
+use super::{node, message};
 use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::{UnboundedReceiverStream, TcpListenerStream};
 use tokio_stream::StreamExt as _;
 use std::time::Duration;
-use tokio_serde::Framed;
-
 
 const TICK: Duration = Duration::from_millis(100);
 
@@ -31,9 +29,9 @@ impl Server {
     }
 
     pub async fn serve(self, tcp_listener: TcpListener) -> Result<(), &'static str> {
+        // TODO: test single thread vs multithreading (spawn or forwarding messages on single runtime)
         let (tcp_inbound_tx, tcp_inbound_rx) = unbounded_channel::<message::Message>();
         tokio::spawn(Self::handle_inbound_tcp(tcp_listener, tcp_inbound_tx));
-
         Self::event_loop(self.node, tcp_inbound_rx).await
     }
 
@@ -51,7 +49,6 @@ impl Server {
             }
 
             // TODO: match node sending message (node_rx -> another peer)
-            // TODO: match node receiving message (tcp_rx)
         }
     }
 
@@ -63,19 +60,23 @@ impl Server {
 
         while let Some(socket) = listener.try_next().await? {
             let tcp_tr = tcp_inbound_tr.clone();
-
             let mut buffer = [0; 1024];
             let _ = &socket.readable().await;
 
-            // let _ = tcp_tr.send(test_message);
-            //
             match socket.try_read(&mut buffer) {
                 Ok(bytes_read) => {
-                    let text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
-                    println!("\n{:?}\n", text);
+                    let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
+
+                    // TODO: add validation to incoming messages
+                    let req_body: Vec<&str> = req_text.lines()
+                        .skip_while(|x| !x.is_empty())
+                        .collect();
+
+                    // example payload: "(term:1,from:Broadcast,to:Broadcast,event:AppendEntries(index:1,term:1))"
+                    let parsed_msg: message::Message = ron::from_str(&req_body[1]).unwrap();
+                    let _ = tcp_tr.send(parsed_msg).unwrap();
 
                     let _ = &socket.writable();
-
                     let res = "HTTP/1.1 201 OK\r\n";
                     let _ = socket.try_write(res.as_bytes());
                 }
@@ -83,11 +84,6 @@ impl Server {
                     eprintln!("Erro ao ler os dados: {}", e);
                 }
             }
-
-            // let tcp_in_tr = tcp_inbound_tr.clone();
-            // serialize socket message <message::Message>
-            // send message to peer (from tcp_tr)
-
         };
 
         Ok(())

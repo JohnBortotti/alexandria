@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub term: u64,
     pub from: Address,
@@ -17,13 +19,13 @@ impl Message {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Address {
     Broadcast,
     Peer(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
     AppendEntries { index: u64, term: u64 },
     RequestVote { term: u64 },
