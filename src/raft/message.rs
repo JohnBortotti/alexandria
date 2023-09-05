@@ -15,8 +15,6 @@ impl Message {
             event
         }
     }
-
-
 }
 
 #[derive(Debug)]
@@ -27,6 +25,7 @@ pub enum Address {
 
 #[derive(Debug)]
 pub enum Event {
-    Heartbeat { index: u64, term: u64 },
-    SoliciteVote
+    AppendEntries { index: u64, term: u64 },
+    RequestVote { term: u64 },
+    Vote { term: u64, voted_for: String }
 }
