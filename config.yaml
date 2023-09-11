@@ -1,0 +1,4 @@
+raft:
+  tick_millis_duration: 3000
+  leader_seen_timeout: 3
+  candidate_election_timeout: 4

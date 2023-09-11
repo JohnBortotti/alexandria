@@ -6,8 +6,7 @@ use tokio_stream::StreamExt as _;
 use std::time::Duration;
 use std::net::TcpStream;
 use std::io::prelude::*;
-
-const TICK: Duration = Duration::from_millis(100);
+use crate::utils::config::CONFIG;
 
 pub struct Server {
     node: node::Node,
@@ -23,9 +22,13 @@ impl Server {
         ) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
         Self {
-            node: node::Node::new(id, peers.clone(), log, node_tx).await,
-            peers,
-            node_rx,
+            node: node::Node::new(
+                      id,
+                      peers.clone(),
+                      log,
+                      node_tx,).await,
+                      peers,
+                      node_rx,
         }
     }
 
@@ -34,23 +37,22 @@ impl Server {
         let (tcp_inbound_tx, tcp_inbound_rx) = unbounded_channel::<message::Message>();
         tokio::spawn(Self::inbound_receiving_tcp(tcp_listener, tcp_inbound_tx));
         tokio::spawn(Self::inbound_sending_tcp(self.node_rx, self.peers));
-        Self::event_loop(self.node, tcp_inbound_rx).await
+        Self::event_loop(self.node, tcp_inbound_rx, CONFIG.raft.tick_millis_duration).await
     }
 
     async fn event_loop(
         mut node: node::Node, 
-        tcp_inbound_rx: UnboundedReceiver<message::Message>
+        tcp_inbound_rx: UnboundedReceiver<message::Message>,
+        ticks: u64
         ) -> Result<(), &'static str> {
         let mut tcp_rx = UnboundedReceiverStream::new(tcp_inbound_rx);
-        let mut ticker = tokio::time::interval(TICK);
+        let mut ticker = tokio::time::interval(Duration::from_millis(ticks));
 
         loop {
             tokio::select! {
                 _ = ticker.tick() => node = node.tick(),
                 Some(msg) = tcp_rx.next() => node = node.step(msg)?
             }
-
-            // TODO: code for peers sending messages (handle message routing)
         }
     }
 
@@ -105,16 +107,25 @@ impl Server {
             let serialized_msg = ron::to_string(&msg).unwrap();
             let http_packet = format!("HTTP/1.1 200 OK \n\n{}", serialized_msg);
 
+            println!("sending message to {:?}", msg.to);
+
             match msg.to {
                 Broadcast => {
                     peers.iter().for_each(|peer| {
-                        let mut stream = TcpStream::connect(peer).unwrap();
-                        stream.write(http_packet.as_bytes()).unwrap();
+                        println!("sending broadcast message to peer {:?}", peer);
+                        let _ = match TcpStream::connect(peer) {
+                            Ok(mut stream) => { stream.write(http_packet.as_bytes()) },
+                            _ => { println!("connection refused, message ignored"); return () }
+
+                        };
                     });
                 },
                 Peer(addr) => {
-                    let mut stream = TcpStream::connect(addr).unwrap();
-                    stream.write(http_packet.as_bytes()).unwrap();
+                    let _ = match TcpStream::connect(addr) {
+                        Ok(mut stream) => { stream.write(http_packet.as_bytes()) },
+                        _ => { println!("connection refused, message ignored"); return Ok(()) }
+
+                    };
                 },
             }
         };

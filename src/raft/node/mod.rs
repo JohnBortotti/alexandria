@@ -1,16 +1,11 @@
 use tokio::sync::mpsc;
 use super::message::Message;
 use super::state_machine::{StateDriver, Instruction};
+use crate::utils::config::CONFIG;
 
 mod candidate;
 mod follower;
 mod leader;
-
-const HEARTBEAT_INTERVAL: u64 = 1;
-
-// TODO: randomize election timeout to prevent infinite vote splitting
-const ELECTION_TIMEOUT_MIN: u64 = 8 * HEARTBEAT_INTERVAL;
-const ELECTION_TIMEOUT_MAX: u64 = 16 * HEARTBEAT_INTERVAL;
 
 pub struct Entry {
     index: u64,
@@ -68,7 +63,7 @@ impl Node {
         id: &str,
         peers: Vec<String>,
         log: Log,
-        node_tx: mpsc::UnboundedSender<Message>
+        node_tx: mpsc::UnboundedSender<Message>,
     ) -> Self {
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -79,7 +74,7 @@ impl Node {
             id: id.to_string(),
             peers,
             log,
-            role: follower::Follower::new(None, None, 5),
+            role: follower::Follower::new(None, None, CONFIG.raft.leader_seen_timeout),
             state_tx,
             node_tx
         };
