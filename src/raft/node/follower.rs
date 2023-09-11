@@ -63,7 +63,11 @@ impl Role<Follower> {
         if self.role.leader_seen_ticks >= self.role.leader_seen_timeout {
             println!("starting election");
             self.log.last_term += 1;
-            let candidate = self.become_role(Candidate::new(CONFIG.raft.candidate_election_timeout, 1));
+            let candidate = self.become_role(
+                Candidate::new(
+                    CONFIG.raft.candidate_election_timeout, 
+                    CONFIG.raft.candidate_election_timeout_rand,
+                    1));
             candidate.node_tx.send(
                 Message::new(candidate.log.last_term.clone(),
                 Address::Peer(candidate.id.clone()), 

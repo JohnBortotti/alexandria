@@ -1,18 +1,21 @@
 use super::{Role, Node, follower::Follower};
 use super::super::{message::Event, message::Message, message::Address};
+use rand::Rng;
 use crate::utils::config::CONFIG;
 
 pub struct Candidate {
     election_ticks: u64,
-    // TODO: implement a timeout_range to use randomizer (so multiple timeout will not collide)
     election_timeout: u64,
+    election_timeout_rand: u64,
     pub votes: u64,
 }
 
 impl Candidate {
-    pub fn new(election_timeout: u64, votes: u64) -> Self {
-        println!("candidate new here");
-        Self {election_ticks: 0, election_timeout, votes}
+    pub fn new(election_timeout: u64, election_timeout_rand: u64, votes: u64) -> Self {
+        let random_timeout = 
+            rand::thread_rng().gen_range(election_timeout..election_timeout+election_timeout_rand);
+        println!("new candidate here, rand_timeout is {:?}", random_timeout);
+        Self {election_ticks: 0, election_timeout: random_timeout, election_timeout_rand, votes}
     }
 }
 
@@ -63,7 +66,7 @@ impl Role<Candidate> {
         if self.role.election_ticks >= self.role.election_timeout {
             println!("election timed out, starting new election");
             self.log.last_term += 1;
-            self.role = Candidate::new(self.role.election_timeout, 1);
+            self.role = Candidate::new(self.role.election_timeout, self.role.election_timeout_rand, 1);
             self.node_tx.send(
                 Message::new(self.log.last_term.clone(),
                 Address::Peer(self.id.clone()), 
@@ -96,7 +99,7 @@ mod tests {
           log: Log::new(),
           node_tx,
           state_tx,
-          role: Candidate::new(2, 1),
+          role: Candidate::new(2, 1, 1),
       };
 
       (candidate, node_rx, state_rx)
