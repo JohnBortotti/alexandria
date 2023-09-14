@@ -12,6 +12,7 @@ pub struct Config {
 pub struct RaftConfig {
     pub tick_millis_duration: u64,
     pub leader_seen_timeout: u64,
+    pub leader_seen_timeout_rand: u64,
     pub candidate_election_timeout: u64,
     pub candidate_election_timeout_rand: u64
 }

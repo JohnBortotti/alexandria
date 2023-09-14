@@ -1,4 +1,4 @@
-use super::{Role, Node, follower::Follower};
+use super::{Role, Node, follower::Follower, leader::Leader};
 use super::super::{message::Event, message::Message, message::Address};
 use rand::Rng;
 use crate::utils::config::CONFIG;
@@ -20,22 +20,32 @@ impl Candidate {
 }
 
 impl Role<Candidate> {
-    pub fn step(self, msg: Message) -> Result<Node, &'static str> {
+    pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
             Event::AppendEntries{index: _, term} => {
+                println!("candidate receiving a appendEntries");
                 if term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
                         _ => panic!("Unexpected Address")
                     };
 
-                    return Ok(self.become_role(Follower::new(Some(address), None, CONFIG.raft.leader_seen_timeout)).into())
+                    return Ok(self.become_role(
+                            Follower::new(
+                                Some(address), 
+                                None, 
+                                CONFIG.raft.leader_seen_timeout,
+                                CONFIG.raft.leader_seen_timeout_rand
+                                ))
+                        .into())
                 } else {
                     return Ok(self.into())
                 }
             },
             Event::RequestVote { term } => {
+                println!("candidate receiving a requestVote");
                 if term >= self.log.last_term {
+                    println!("voting on the other peer wich has a bigger term");
                     let from = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
                         _ => panic!("Unexpected Address")
@@ -49,14 +59,32 @@ impl Role<Candidate> {
                                     )
                         ).unwrap();
 
-                    return Ok(self.become_role(Follower::new(Some(from), None, CONFIG.raft.leader_seen_timeout)).into())
+                    return Ok(self.become_role(
+                            Follower::new(
+                                Some(from), 
+                                None, 
+                                CONFIG.raft.leader_seen_timeout,
+                                CONFIG.raft.leader_seen_timeout_rand
+                                ))
+                        .into())
                 } else {
+                    println!("ignoring the requestVote, my term is bigger");
                     return Ok(self.into())
+                }
+            },
+            Event::Vote { term, voted_for } => {
+                println!("candidate receiving a vote, term: {}, voted_for: {}", term, voted_for);
+                self.role.votes+=1;
+
+                if self.role.votes >= self.peers.len() as u64 {
+                    let peers = self.peers.clone();
+                        return Ok(self.become_role(Leader::new(peers)).into());
+                } else {
+                    Ok(self.into())
                 }
             }
             // TODO: become leader when receive majority of votes
-            x => panic!("Message event not defined: {:?}", x),
-        };
+        }
     }
     
     pub fn tick(mut self) -> Node {

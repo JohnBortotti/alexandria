@@ -11,6 +11,7 @@ pub struct Leader {
 
 impl Leader {
     pub fn new(peers: Vec<String>) -> Self {
+        println!("A new Leader ARISES");
         let mut leader = Self {
             peer_last_index: HashMap::new() 
         };
