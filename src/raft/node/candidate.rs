@@ -44,7 +44,7 @@ impl Role<Candidate> {
             },
             Event::RequestVote { term } => {
                 println!("candidate receiving a requestVote");
-                if term >= self.log.last_term {
+                if term > self.log.last_term {
                     println!("voting on the other peer wich has a bigger term");
                     let from = match msg.from {
                         Address::Peer(addr) => addr.to_string(),

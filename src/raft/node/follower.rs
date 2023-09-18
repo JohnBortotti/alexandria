@@ -1,6 +1,5 @@
 use super::{Role, Node, candidate::Candidate};
 use super::super::{message::Event, message::Message, message::Address};
-use rand::Rng;
 use crate::utils::config::CONFIG;
 
 pub struct Follower {
@@ -17,10 +16,7 @@ impl Follower {
                leader_seen_timeout: u64, 
                leader_seen_timeout_rand: u64
               ) -> Self { 
-        let random_timeout = 
-            rand::thread_rng().gen_range(leader_seen_timeout..leader_seen_timeout+leader_seen_timeout_rand);
-        println!("new follower here, leader_timeout is {:?}", random_timeout);
-        Self { leader, voted, leader_seen_ticks: 0, leader_seen_timeout: random_timeout, leader_seen_timeout_rand }
+        Self { leader, voted, leader_seen_ticks: 0, leader_seen_timeout, leader_seen_timeout_rand }
     }
 }
 
@@ -56,6 +52,8 @@ impl Role<Follower> {
                                 );
 
                             self.node_tx.send(res).unwrap();
+                            println!("follower granted a vote, reseting leader_seen_ticks");
+                            self.role.leader_seen_ticks = 0;
                         },
                         _ => panic!("Unexpected sender address"),
                     };
