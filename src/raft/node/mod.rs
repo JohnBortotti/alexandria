@@ -78,13 +78,18 @@ impl Node {
                 None,
                 None,
                 CONFIG.raft.leader_seen_timeout, 
-                CONFIG.raft.leader_seen_timeout_rand),
+                ),
                 state_tx,
             node_tx
         };
 
         if node.peers.is_empty() {
-            node.become_role(leader::Leader::new(vec!())).into()
+            node.become_role(
+                leader::Leader::new(
+                    vec!(),
+                    CONFIG.raft.leader_idle_timeout
+                    )
+                ).into()
         } else {
             node.into()
         }

@@ -7,16 +7,14 @@ pub struct Follower {
     voted: Option<String>,
     leader_seen_ticks: u64,
     leader_seen_timeout: u64,
-    leader_seen_timeout_rand: u64
 }
 
 impl Follower {
     pub fn new(leader: Option<String>, 
                voted: Option<String>, 
                leader_seen_timeout: u64, 
-               leader_seen_timeout_rand: u64
               ) -> Self { 
-        Self { leader, voted, leader_seen_ticks: 0, leader_seen_timeout, leader_seen_timeout_rand }
+        Self { leader, voted, leader_seen_ticks: 0, leader_seen_timeout }
     }
 }
 
@@ -105,7 +103,6 @@ impl Role<Follower> {
                 Some(address), 
                 None, 
                 CONFIG.raft.leader_seen_timeout,
-                CONFIG.raft.leader_seen_timeout_rand
                 )
             );
         follower.into()
@@ -131,7 +128,7 @@ mod tests {
           log: Log::new(),
           node_tx,
           state_tx,
-          role: Follower::new(Some("a".into()), None, 2, 1),
+          role: Follower::new(Some("a".into()), None, 2),
       };
 
       (follower, node_rx, state_rx)

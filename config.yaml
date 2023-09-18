@@ -1,6 +1,8 @@
 raft:
   tick_millis_duration: 3000
   leader_seen_timeout: 5
-  leader_seen_timeout_rand: 6
   candidate_election_timeout: 5
   candidate_election_timeout_rand: 6
+  leader_idle_timeout: 4
+
+

@@ -35,7 +35,6 @@ impl Role<Candidate> {
                                 Some(address), 
                                 None, 
                                 CONFIG.raft.leader_seen_timeout,
-                                CONFIG.raft.leader_seen_timeout_rand
                                 ))
                         .into())
                 } else {
@@ -64,7 +63,6 @@ impl Role<Candidate> {
                                 Some(from), 
                                 None, 
                                 CONFIG.raft.leader_seen_timeout,
-                                CONFIG.raft.leader_seen_timeout_rand
                                 ))
                         .into())
                 } else {
@@ -78,7 +76,11 @@ impl Role<Candidate> {
 
                 if self.role.votes >= self.peers.len() as u64 {
                     let peers = self.peers.clone();
-                        return Ok(self.become_role(Leader::new(peers)).into());
+                        return Ok(self.become_role(
+                                Leader::new(
+                                    peers,
+                                    CONFIG.raft.leader_idle_timeout
+                                    )).into());
                 } else {
                     Ok(self.into())
                 }
