@@ -1,5 +1,5 @@
-use super::{Role, Node, candidate::Candidate};
-use super::super::{message::Event, message::Message, message::Address};
+use super::super::{message::Address, message::Event, message::Message};
+use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
 
 pub struct Follower {
@@ -10,11 +10,13 @@ pub struct Follower {
 }
 
 impl Follower {
-    pub fn new(leader: Option<String>, 
-               voted: Option<String>, 
-               leader_seen_timeout: u64, 
-              ) -> Self { 
-        Self { leader, voted, leader_seen_ticks: 0, leader_seen_timeout }
+    pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
+        Self {
+            leader,
+            voted,
+            leader_seen_ticks: 0,
+            leader_seen_timeout,
+        }
     }
 }
 
@@ -25,17 +27,17 @@ impl Role<Follower> {
             self.role.leader_seen_ticks = 0;
         }
 
-        if self.role.leader == None {
+        if self.role.leader.is_none() {
             println!("dont know any leader, following the peer: {:?}", msg.from);
-            return Ok(self.follow(msg.from))
+            return Ok(self.follow(msg.from));
         }
-        
+
         match msg.event {
             Event::AppendEntries { index: _, term } => {
                 if self.is_leader(&msg.from) {
                     self.log.append(term, None);
                 }
-            },
+            }
             Event::RequestVote { term } => {
                 println!("follower receiving a requestVote");
                 if term > self.log.last_term {
@@ -43,21 +45,26 @@ impl Role<Follower> {
                         Address::Peer(sender) => {
                             println!("voting for peer {:?}", sender);
                             let res = Message::new(
-                                term, 
-                                Address::Peer(self.id.clone()), 
-                                Address::Broadcast, 
-                                Event::Vote{term, voted_for: sender}
-                                );
+                                term,
+                                Address::Peer(self.id.clone()),
+                                Address::Broadcast,
+                                Event::Vote {
+                                    term,
+                                    voted_for: sender,
+                                },
+                            );
 
                             self.node_tx.send(res).unwrap();
                             println!("follower granted a vote, reseting leader_seen_ticks");
                             self.role.leader_seen_ticks = 0;
-                        },
+                        }
                         _ => panic!("Unexpected sender address"),
                     };
                 }
-            },
-            Event::Vote { .. } => { println!("follower receiving vote, ignoring")},
+            }
+            Event::Vote { .. } => {
+                println!("follower receiving vote, ignoring")
+            }
         };
 
         Ok(self.into())
@@ -70,16 +77,21 @@ impl Role<Follower> {
         if self.role.leader_seen_ticks >= self.role.leader_seen_timeout {
             println!("starting election");
             self.log.last_term += 1;
-            let candidate = self.become_role(
-                Candidate::new(
-                    CONFIG.raft.candidate_election_timeout, 
-                    CONFIG.raft.candidate_election_timeout_rand,
-                    1));
-            candidate.node_tx.send(
-                Message::new(candidate.log.last_term.clone(),
-                Address::Peer(candidate.id.clone()), 
-                Address::Broadcast, 
-                Event::RequestVote{ term:candidate.log.last_term.clone() }))
+            let candidate = self.become_role(Candidate::new(
+                CONFIG.raft.candidate_election_timeout,
+                CONFIG.raft.candidate_election_timeout_rand,
+                1,
+            ));
+            candidate
+                .node_tx
+                .send(Message::new(
+                    candidate.log.last_term,
+                    Address::Peer(candidate.id.clone()),
+                    Address::Broadcast,
+                    Event::RequestVote {
+                        term: candidate.log.last_term,
+                    },
+                ))
                 .unwrap();
             println!("first election request sent");
             candidate.into()
@@ -98,104 +110,100 @@ impl Role<Follower> {
             _ => panic!("Expected leader to be an Peer Address"),
         };
 
-        let follower = self.become_role(
-            Follower::new(
-                Some(address), 
-                None, 
-                CONFIG.raft.leader_seen_timeout,
-                )
-            );
+        let follower = self.become_role(Follower::new(
+            Some(address),
+            None,
+            CONFIG.raft.leader_seen_timeout,
+        ));
         follower.into()
     }
-
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use crate::raft::node::Log;
-  use tokio::sync::mpsc::UnboundedReceiver;
-  use crate::raft::state_machine::Instruction;
-  use crate::raft::message::Message;
+    use super::*;
+    use crate::raft::message::Message;
+    use crate::raft::node::Log;
+    use crate::raft::state_machine::Instruction;
+    use tokio::sync::mpsc::UnboundedReceiver;
 
-  fn setup() -> (Role<Follower>, UnboundedReceiver<Message>, UnboundedReceiver<Instruction>) {
-      let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
-      let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
+    fn setup() -> (
+        Role<Follower>,
+        UnboundedReceiver<Message>,
+        UnboundedReceiver<Instruction>,
+    ) {
+        let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
 
-      let follower = Role {
-          id: "d".into(),
-          peers: vec!["a".into(), "b".into(), "c".into()],
-          log: Log::new(),
-          node_tx,
-          state_tx,
-          role: Follower::new(Some("a".into()), None, 2),
-      };
+        let follower = Role {
+            id: "d".into(),
+            peers: vec!["a".into(), "b".into(), "c".into()],
+            log: Log::new(),
+            node_tx,
+            state_tx,
+            role: Follower::new(Some("a".into()), None, 2),
+        };
 
-      (follower, node_rx, state_rx)
-  }
+        (follower, node_rx, state_rx)
+    }
 
-  #[test]
-  fn new_follower() {
-      let (follower, _, _) = setup();
+    #[test]
+    fn new_follower() {
+        let (follower, _, _) = setup();
 
-      assert_eq!(follower.role.leader_seen_ticks, 0);
-      assert_eq!(follower.role.leader, Some("a".into()));
+        assert_eq!(follower.role.leader_seen_ticks, 0);
+        assert_eq!(follower.role.leader, Some("a".into()));
 
-      let node = follower.tick();
-      
-      match node {
-          Node::Follower(follower) => {
-              assert_eq!(follower.role.leader_seen_ticks, 1);
-          }
-          _ => panic!("Expected node to be follower")
-      }
-  }
+        let node = follower.tick();
 
-  // #[tokio::test]
-  // async fn follower_become_candidate() {
-  //     let (follower, _, _) = setup();
-  //
-  //     let node = follower.tick().tick();
-  //
-  //     match node {
-  //         Node::Candidate(candidate) => {
-  //             assert_eq!(candidate.role.votes, 1);
-  //             assert_eq!(candidate.log.last_term, 1);
-  //         },
-  //         _ => panic!("Expected node to become candidate after seen ticks timeout")
-  //     }
-  // }
+        match node {
+            Node::Follower(follower) => {
+                assert_eq!(follower.role.leader_seen_ticks, 1);
+            }
+            _ => panic!("Expected node to be follower"),
+        }
+    }
 
-  #[test]
-  fn follower_step_reset_seen_ticks() {
-      let (follower, _, _) = setup();
+    // #[tokio::test]
+    // async fn follower_become_candidate() {
+    //     let (follower, _, _) = setup();
+    //
+    //     let node = follower.tick().tick();
+    //
+    //     match node {
+    //         Node::Candidate(candidate) => {
+    //             assert_eq!(candidate.role.votes, 1);
+    //             assert_eq!(candidate.log.last_term, 1);
+    //         },
+    //         _ => panic!("Expected node to become candidate after seen ticks timeout")
+    //     }
+    // }
 
-      let node = follower.tick();
+    #[test]
+    fn follower_step_reset_seen_ticks() {
+        let (follower, _, _) = setup();
 
-      match node {
-          Node::Follower(follower) => {
-              let msg = Message {
-                  event: Event::AppendEntries{index: 1, term: 1},
-                  term: 1,
-                  to: Address::Peer("b".into()),
-                  from: Address::Peer("a".into())
+        let node = follower.tick();
 
-              };
+        match node {
+            Node::Follower(follower) => {
+                let msg = Message {
+                    event: Event::AppendEntries { index: 1, term: 1 },
+                    term: 1,
+                    to: Address::Peer("b".into()),
+                    from: Address::Peer("a".into()),
+                };
 
-              let follower = follower.step(msg);
-              match follower {
-                  Ok(Node::Follower(follower)) => {
-                      assert_eq!(follower.role.leader_seen_ticks, 0);
-                      assert_eq!(follower.role.leader, Some("a".into()))
-                  },
-                  _ => panic!("Expected node to be follower")
-              };
-
-          },
-          _ => panic!("Expected node to be follower")
-
-      }
-
-  }
-
+                let follower = follower.step(msg);
+                match follower {
+                    Ok(Node::Follower(follower)) => {
+                        assert_eq!(follower.role.leader_seen_ticks, 0);
+                        assert_eq!(follower.role.leader, Some("a".into()))
+                    }
+                    _ => panic!("Expected node to be follower"),
+                };
+            }
+            _ => panic!("Expected node to be follower"),
+        }
+    }
 }

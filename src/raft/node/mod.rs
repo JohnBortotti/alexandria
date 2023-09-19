@@ -1,7 +1,7 @@
-use tokio::sync::mpsc;
 use super::message::Message;
-use super::state_machine::{StateDriver, Instruction};
+use super::state_machine::{Instruction, StateDriver};
 use crate::utils::config::CONFIG;
+use tokio::sync::mpsc;
 
 mod candidate;
 mod follower;
@@ -18,29 +18,28 @@ pub struct Log {
     last_term: u64,
     commit_index: u64,
     commit_term: u64,
-    entries: Box<Vec<Entry>>
+    entries: Vec<Entry>,
 }
 
 impl Log {
     pub fn new() -> Self {
         Self {
-            last_index: 0, 
-            last_term: 0, 
-            commit_index: 0, 
-            commit_term: 0, 
-            entries: Box::new(vec!())
+            last_index: 0,
+            last_term: 0,
+            commit_index: 0,
+            commit_term: 0,
+            entries: <Vec<Entry>>::default(),
         }
-
     }
 
     pub fn append(&mut self, term: u64, command: Option<Vec<u8>>) {
         let entry = Entry {
-            index: self.last_index+1,
+            index: self.last_index + 1,
             term,
-            command
+            command,
         };
 
-        self.last_index = self.last_index+1;
+        self.last_index += 1;
         self.last_term = term;
         self.entries.push(entry);
     }
@@ -56,7 +55,6 @@ pub enum Node {
     Candidate(Role<candidate::Candidate>),
     Leader(Role<leader::Leader>),
 }
-
 
 impl Node {
     pub async fn new(
@@ -74,26 +72,17 @@ impl Node {
             id: id.to_string(),
             peers,
             log,
-            role: follower::Follower::new(
-                None,
-                None,
-                CONFIG.raft.leader_seen_timeout, 
-                ),
-                state_tx,
-            node_tx
+            role: follower::Follower::new(None, None, CONFIG.raft.leader_seen_timeout),
+            state_tx,
+            node_tx,
         };
 
         if node.peers.is_empty() {
-            node.become_role(
-                leader::Leader::new(
-                    vec!(),
-                    CONFIG.raft.leader_idle_timeout
-                    )
-                ).into()
+            node.become_role(leader::Leader::new(vec![], CONFIG.raft.leader_idle_timeout))
+                .into()
         } else {
             node.into()
         }
-
     }
 
     pub fn tick(self) -> Self {
@@ -130,7 +119,7 @@ impl<R> Role<R> {
             log: self.log,
             node_tx: self.node_tx,
             state_tx: self.state_tx,
-            role   
+            role,
         }
     }
 }
@@ -155,33 +144,39 @@ impl From<Role<candidate::Candidate>> for Node {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
 
-  #[tokio::test]
-  async fn new_node() {
-      let (tx, _) = tokio::sync::mpsc::unbounded_channel();
-      let node = Node::new("a", vec!("a".to_string(), "b".to_string()), Log::new(), tx.clone()).await;
+    #[tokio::test]
+    async fn new_node() {
+        let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+        let node = Node::new(
+            "a",
+            vec!["a".to_string(), "b".to_string()],
+            Log::new(),
+            tx.clone(),
+        )
+        .await;
 
-      match node {
-          Node::Follower(node) => {
-              assert_eq!(node.id, "a".to_owned());
-              assert_eq!(node.peers, vec!("a".to_string(), "b".to_string()));
-          }
-          _ => panic!("Expected node to start as follower"),
-      }
-  }
+        match node {
+            Node::Follower(node) => {
+                assert_eq!(node.id, "a".to_owned());
+                assert_eq!(node.peers, vec!("a".to_string(), "b".to_string()));
+            }
+            _ => panic!("Expected node to start as follower"),
+        }
+    }
 
-  #[tokio::test]
-  async fn new_node_become_leader() {
-      let (tx, _) = tokio::sync::mpsc::unbounded_channel();
-      let node = Node::new("a", vec!(), Log::new(), tx.clone()).await;
+    #[tokio::test]
+    async fn new_node_become_leader() {
+        let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+        let node = Node::new("a", vec![], Log::new(), tx.clone()).await;
 
-      match node {
-          Node::Leader(node) => {
-              assert_eq!(node.id, "a".to_owned());
-              assert_eq!(node.peers.is_empty(), true);
-          }
-          _ => panic!("Expected node to become leader"),
-      }
-  }
+        match node {
+            Node::Leader(node) => {
+                assert_eq!(node.id, "a".to_owned());
+                assert_eq!(node.peers.is_empty(), true);
+            }
+            _ => panic!("Expected node to become leader"),
+        }
+    }
 }

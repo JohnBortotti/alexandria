@@ -5,7 +5,7 @@ pub struct Message {
     pub term: u64,
     pub from: Address,
     pub to: Address,
-    pub event: Event
+    pub event: Event,
 }
 
 impl Message {
@@ -14,7 +14,7 @@ impl Message {
             term,
             from,
             to,
-            event
+            event,
         }
     }
 }
@@ -22,12 +22,12 @@ impl Message {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Address {
     Broadcast,
-    Peer(String)
+    Peer(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
     AppendEntries { index: u64, term: u64 },
     RequestVote { term: u64 },
-    Vote { term: u64, voted_for: String }
+    Vote { term: u64, voted_for: String },
 }

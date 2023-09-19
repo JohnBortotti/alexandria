@@ -1,12 +1,16 @@
-use super::{node, message, message::Address::{Broadcast, Peer}};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use tokio::net::TcpListener;
-use tokio_stream::wrappers::{UnboundedReceiverStream, TcpListenerStream};
-use tokio_stream::StreamExt as _;
-use std::time::Duration;
-use std::net::TcpStream;
-use std::io::prelude::*;
+use super::{
+    message,
+    message::Address::{Broadcast, Peer},
+    node,
+};
 use crate::utils::config::CONFIG;
+use std::io::prelude::*;
+use std::net::TcpStream;
+use std::time::Duration;
+use tokio::net::TcpListener;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio_stream::wrappers::{TcpListenerStream, UnboundedReceiverStream};
+use tokio_stream::StreamExt as _;
 
 pub struct Server {
     node: node::Node,
@@ -15,20 +19,12 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(
-        id: &str,
-        peers: Vec<String>,
-        log: node::Log,
-        ) -> Self {
+    pub async fn new(id: &str, peers: Vec<String>, log: node::Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
         Self {
-            node: node::Node::new(
-                      id,
-                      peers.clone(),
-                      log,
-                      node_tx,).await,
-                      peers,
-                      node_rx,
+            node: node::Node::new(id, peers.clone(), log, node_tx).await,
+            peers,
+            node_rx,
         }
     }
 
@@ -41,10 +37,10 @@ impl Server {
     }
 
     async fn event_loop(
-        mut node: node::Node, 
+        mut node: node::Node,
         tcp_inbound_rx: UnboundedReceiver<message::Message>,
-        ticks: u64
-        ) -> Result<(), &'static str> {
+        ticks: u64,
+    ) -> Result<(), &'static str> {
         let mut tcp_rx = UnboundedReceiverStream::new(tcp_inbound_rx);
         let mut ticker = tokio::time::interval(Duration::from_millis(ticks));
 
@@ -57,9 +53,9 @@ impl Server {
     }
 
     async fn inbound_receiving_tcp(
-        listener: TcpListener, 
-        tcp_inbound_tr: UnboundedSender<message::Message>
-        ) -> Result<(), std::io::Error> {
+        listener: TcpListener,
+        tcp_inbound_tr: UnboundedSender<message::Message>,
+    ) -> Result<(), std::io::Error> {
         let mut listener = TcpListenerStream::new(listener);
 
         while let Some(socket) = listener.try_next().await? {
@@ -72,17 +68,16 @@ impl Server {
                     let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
 
                     // TODO: add validation to incoming messages
-                    let req_body: Vec<&str> = req_text.lines()
-                        .skip_while(|x| !x.is_empty())
-                        .collect();
+                    let req_body: Vec<&str> =
+                        req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
-                    if let None = &req_body.get(1) {
+                    if req_body.get(1).is_none() {
                         panic!("message incorrect");
                     };
 
                     // example payload: "(term:1,from:Broadcast,to:Broadcast,event:AppendEntries(index:1,term:1))"
-                    let parsed_msg: message::Message = ron::from_str(&req_body[1]).unwrap();
-                    let _ = tcp_tr.send(parsed_msg).unwrap();
+                    let parsed_msg: message::Message = ron::from_str(req_body[1]).unwrap();
+                    tcp_tr.send(parsed_msg).unwrap();
 
                     let _ = &socket.writable();
                     let res = "HTTP/1.1 200 OK\r\n";
@@ -92,15 +87,15 @@ impl Server {
                     eprintln!("Erro ao ler os dados: {}", e);
                 }
             }
-        };
+        }
 
         Ok(())
     }
 
     async fn inbound_sending_tcp(
-        node_rx: UnboundedReceiver::<message::Message>,
-        peers: Vec<String>
-        ) -> Result<(), std::io::Error> {
+        node_rx: UnboundedReceiver<message::Message>,
+        peers: Vec<String>,
+    ) -> Result<(), std::io::Error> {
         let mut listener = UnboundedReceiverStream::new(node_rx);
 
         while let Some(msg) = listener.next().await {
@@ -114,21 +109,25 @@ impl Server {
                     peers.iter().for_each(|peer| {
                         println!("sending broadcast message to peer {:?}", peer);
                         let _ = match TcpStream::connect(peer) {
-                            Ok(mut stream) => { stream.write(http_packet.as_bytes()) },
-                            _ => { println!("connection refused, message ignored"); return () }
-
+                            Ok(mut stream) => stream.write(http_packet.as_bytes()),
+                            _ => {
+                                println!("connection refused, message ignored");
+                                return;
+                            }
                         };
                     });
-                },
+                }
                 Peer(addr) => {
                     let _ = match TcpStream::connect(addr) {
-                        Ok(mut stream) => { stream.write(http_packet.as_bytes()) },
-                        _ => { println!("connection refused, message ignored"); return Ok(()) }
-
+                        Ok(mut stream) => stream.write(http_packet.as_bytes()),
+                        _ => {
+                            println!("connection refused, message ignored");
+                            return Ok(());
+                        }
                     };
-                },
+                }
             }
-        };
+        }
 
         Ok(())
     }

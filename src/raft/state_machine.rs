@@ -1,7 +1,7 @@
-use tokio::sync::mpsc::{ UnboundedReceiver, UnboundedSender};
+use super::message::{Address, Message};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
-use super::message::{Message, Address};
 
 #[derive(Clone, Debug)]
 pub struct Entry {
@@ -14,25 +14,25 @@ pub struct Entry {
 pub enum Instruction {
     Abort,
     Append { entry: Entry },
-    Notify { id: Vec<u8>, address: Address},
-    Vote { term: u64, address: Address}
+    Notify { id: Vec<u8>, address: Address },
+    Vote { term: u64, address: Address },
 }
 
 pub struct StateDriver {
     state_rx: UnboundedReceiverStream<Instruction>,
     node_tx: UnboundedSender<Message>,
-    applied_index: u64
+    applied_index: u64,
 }
 
 impl StateDriver {
     pub fn new(
         state_rx: UnboundedReceiver<Instruction>,
         node_tx: UnboundedSender<Message>,
-        ) -> Self {
+    ) -> Self {
         Self {
             state_rx: UnboundedReceiverStream::new(state_rx),
             node_tx,
-            applied_index: 0
+            applied_index: 0,
         }
     }
 
@@ -42,6 +42,6 @@ impl StateDriver {
         while let Some(msg) = self.state_rx.next().await {
             println!("\nInstruction received by state_driver:");
             println!("{:?}", msg);
-        } 
+        }
     }
 }
