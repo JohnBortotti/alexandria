@@ -9,7 +9,12 @@ use tokio::net::TcpListener;
 async fn main() {
     let env_addr = env::var("PEER_ADDR").unwrap();
     let env_peers = env::var("PEERS").unwrap();
-    let peers: Vec<String> = env_peers.split(',').map(|x| x.to_string()).collect();
+
+    let peers: Vec<String> = if env_peers.len() > 0 { 
+        env_peers.split(',').map(|x| x.to_string()).collect()
+     } else {
+         vec!()
+    };
 
     let server = raft::server::Server::new(&env_addr, peers, raft::node::Log::new()).await;
 
