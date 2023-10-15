@@ -7,8 +7,8 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
-    let env_addr = env::var("PEER_ADDR").unwrap();
-    let env_peers = env::var("PEERS").unwrap();
+    let env_addr = env::var("PEER_ADDR").expect("PEER_ADDR env var not found");
+    let env_peers = env::var("PEERS").expect("PEERS env var not found");
 
     let peers: Vec<String> = if env_peers.len() > 0 { 
         env_peers.split(',').map(|x| x.to_string()).collect()
