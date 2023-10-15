@@ -110,16 +110,19 @@ impl Role<Candidate> {
                 self.role.election_timeout_rand,
                 1,
             );
-            self.node_tx
+            
+            if let Err(error) = self.node_tx
                 .send(Message::new(
-                    self.log.last_term,
-                    Address::Peer(self.id.clone()),
-                    Address::Broadcast,
-                    Event::RequestVote {
-                        term: self.log.last_term,
-                    },
-                ))
-                .unwrap();
+                        self.log.last_term,
+                        Address::Peer(self.id.clone()),
+                        Address::Broadcast,
+                        Event::RequestVote {
+                            term: self.log.last_term,
+                        },
+                )) {
+                    panic!("{}", error);
+                };
+
             self.into()
         } else {
             self.into()
@@ -172,41 +175,41 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn candidate_election_timeout() {
-    //     let (candidate, _, _) = setup();
-    //
-    //     let node = candidate.tick().tick();
-    //
-    //     match node {
-    //         Node::Candidate(candidate) => {
-    //             assert_eq!(candidate.role.election_ticks, 0);
-    //             assert_eq!(candidate.role.votes, 1);
-    //             assert_eq!(candidate.log.last_term, 1);
-    //         }
-    //         _ => panic!("Expected node to be Candidate")
-    //
-    //     }
-    // }
+    #[test]
+    fn candidate_election_timeout() {
+        let (candidate, _node_rx, _) = setup();
 
-    // #[test]
-    // fn candidate_become_follower_by_heartbeat() {
-    //     let (candidate, _, _) = setup();
-    //
-    //     let msg = Message {
-    //         event: Event::AppendEntries{index: 1, term: 2},
-    //         term: 2,
-    //         to: Address::Peer("b".into()),
-    //         from: Address::Peer("c".into())
-    //     };
-    //
-    //     let node = candidate.step(msg);
-    //
-    //     match node {
-    //         Ok(Node::Follower(follower)) => {
-    //             assert_eq!(follower.role.leader, Some("c".into()))
-    //         },
-    //         _ => panic!("Expected node to be Follower"),
-    //     }
-    // }
+        let node = candidate.tick().tick();
+
+        match node {
+            Node::Candidate(candidate) => {
+                assert_eq!(candidate.role.election_ticks, 0);
+                assert_eq!(candidate.role.votes, 1);
+                assert_eq!(candidate.log.last_term, 1);
+            }
+            _ => panic!("Expected node to be Candidate")
+
+        }
+    }
+
+    #[test]
+    fn candidate_become_follower_by_heartbeat() {
+        let (candidate, _, _) = setup();
+
+        let msg = Message {
+            event: Event::AppendEntries{index: 1, term: 2},
+            term: 2,
+            to: Address::Broadcast,
+            from: Address::Peer("c".into())
+        };
+
+        let node = candidate.step(msg);
+
+        match node {
+            Ok(Node::Follower(follower)) => {
+                assert_eq!(follower.role.leader, Some("c".into()))
+            },
+            _ => panic!("Expected node to be Follower"),
+        }
+    }
 }
