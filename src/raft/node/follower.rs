@@ -82,17 +82,20 @@ impl Role<Follower> {
                 CONFIG.raft.candidate_election_timeout_rand,
                 1,
             ));
-            candidate
+
+            if let Err(error) = candidate
                 .node_tx
-                .send(Message::new(
-                    candidate.log.last_term,
-                    Address::Peer(candidate.id.clone()),
-                    Address::Broadcast,
-                    Event::RequestVote {
-                        term: candidate.log.last_term,
-                    },
-                ))
-                .unwrap();
+                    .send(Message::new(
+                            candidate.log.last_term,
+                            Address::Peer(candidate.id.clone()),
+                            Address::Broadcast,
+                            Event::RequestVote {
+                                term: candidate.log.last_term,
+                            },
+                    )) {
+                        panic!("{}", error);
+            }
+
             println!("first election request sent");
             candidate.into()
         } else {
@@ -164,20 +167,20 @@ mod tests {
         }
     }
 
-    // #[tokio::test]
-    // async fn follower_become_candidate() {
-    //     let (follower, _, _) = setup();
-    //
-    //     let node = follower.tick().tick();
-    //
-    //     match node {
-    //         Node::Candidate(candidate) => {
-    //             assert_eq!(candidate.role.votes, 1);
-    //             assert_eq!(candidate.log.last_term, 1);
-    //         },
-    //         _ => panic!("Expected node to become candidate after seen ticks timeout")
-    //     }
-    // }
+    #[tokio::test]
+    async fn follower_become_candidate() {
+        let (follower, _node_rx, _) = setup();
+
+        let node = follower.tick().tick();
+
+        match node {
+            Node::Candidate(candidate) => {
+                assert_eq!(candidate.role.votes, 1);
+                assert_eq!(candidate.log.last_term, 1);
+            },
+            _ => panic!("Expected node to become candidate after seen ticks timeout")
+        }
+    }
 
     #[test]
     fn follower_step_reset_seen_ticks() {
