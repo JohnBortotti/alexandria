@@ -88,7 +88,6 @@ impl Server {
                 }
                 Err(e) => {
                     info!(target: "raft", "error on reading tcp data: {}", e);
-                    // eprintln!("Erro ao ler os dados: {}", e);
                 }
             }
         }
@@ -106,16 +105,15 @@ impl Server {
             let serialized_msg = ron::to_string(&msg).unwrap();
             let http_packet = format!("HTTP/1.1 200 OK \n\n{}", serialized_msg);
 
-            println!("sending message to {:?}", msg.to);
+            info!(target: "raft", "tcp sending message to: {:?}", msg.to);
 
             match msg.to {
                 Broadcast => {
                     peers.iter().for_each(|peer| {
-                        println!("sending broadcast message to peer {:?}", peer);
+                        info!(target: "raft", "tcp sending broadcast message to peer: {:?}", peer);
                         let _ = match TcpStream::connect(peer) {
                             Ok(mut stream) => stream.write(http_packet.as_bytes()),
                             _ => {
-                                println!("connection refused, message ignored");
                                 info!(target: "raft", "connection refused, message ignored");
                                 return;
                             }
