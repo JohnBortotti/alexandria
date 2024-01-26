@@ -83,17 +83,15 @@ impl Role<Follower> {
                 1,
             ));
 
-            if let Err(error) = candidate
-                .node_tx
-                    .send(Message::new(
-                            candidate.log.last_term,
-                            Address::Peer(candidate.id.clone()),
-                            Address::Broadcast,
-                            Event::RequestVote {
-                                term: candidate.log.last_term,
-                            },
-                    )) {
-                        panic!("{}", error);
+            if let Err(error) = candidate.node_tx.send(Message::new(
+                candidate.log.last_term,
+                Address::Peer(candidate.id.clone()),
+                Address::Broadcast,
+                Event::RequestVote {
+                    term: candidate.log.last_term,
+                },
+            )) {
+                panic!("{}", error);
             }
 
             println!("first election request sent");
@@ -177,8 +175,8 @@ mod tests {
             Node::Candidate(candidate) => {
                 assert_eq!(candidate.role.votes, 1);
                 assert_eq!(candidate.log.last_term, 1);
-            },
-            _ => panic!("Expected node to become candidate after seen ticks timeout")
+            }
+            _ => panic!("Expected node to become candidate after seen ticks timeout"),
         }
     }
 

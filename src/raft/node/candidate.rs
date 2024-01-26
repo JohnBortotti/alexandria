@@ -110,18 +110,17 @@ impl Role<Candidate> {
                 self.role.election_timeout_rand,
                 1,
             );
-            
-            if let Err(error) = self.node_tx
-                .send(Message::new(
-                        self.log.last_term,
-                        Address::Peer(self.id.clone()),
-                        Address::Broadcast,
-                        Event::RequestVote {
-                            term: self.log.last_term,
-                        },
-                )) {
-                    panic!("{}", error);
-                };
+
+            if let Err(error) = self.node_tx.send(Message::new(
+                self.log.last_term,
+                Address::Peer(self.id.clone()),
+                Address::Broadcast,
+                Event::RequestVote {
+                    term: self.log.last_term,
+                },
+            )) {
+                panic!("{}", error);
+            };
 
             self.into()
         } else {
@@ -187,8 +186,7 @@ mod tests {
                 assert_eq!(candidate.role.votes, 1);
                 assert_eq!(candidate.log.last_term, 1);
             }
-            _ => panic!("Expected node to be Candidate")
-
+            _ => panic!("Expected node to be Candidate"),
         }
     }
 
@@ -197,10 +195,10 @@ mod tests {
         let (candidate, _, _) = setup();
 
         let msg = Message {
-            event: Event::AppendEntries{index: 1, term: 2},
+            event: Event::AppendEntries { index: 1, term: 2 },
             term: 2,
             to: Address::Broadcast,
-            from: Address::Peer("c".into())
+            from: Address::Peer("c".into()),
         };
 
         let node = candidate.step(msg);
@@ -208,7 +206,7 @@ mod tests {
         match node {
             Ok(Node::Follower(follower)) => {
                 assert_eq!(follower.role.leader, Some("c".into()))
-            },
+            }
             _ => panic!("Expected node to be Follower"),
         }
     }

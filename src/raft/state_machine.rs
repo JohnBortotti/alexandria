@@ -2,6 +2,7 @@ use super::message::{Address, Message};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
+use log::info;
 
 #[derive(Clone, Debug)]
 pub struct Entry {
@@ -37,7 +38,7 @@ impl StateDriver {
     }
 
     pub async fn run(mut self) {
-        println!("running state_driver");
+        info!(target: "state_machine", "running state_driver");
 
         while let Some(msg) = self.state_rx.next().await {
             println!("\nInstruction received by state_driver:");

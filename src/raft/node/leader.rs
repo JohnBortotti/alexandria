@@ -3,6 +3,7 @@ use super::super::message::Event::AppendEntries;
 use super::super::message::Message;
 use super::{Node, Role};
 use std::collections::HashMap;
+use log::info;
 
 pub struct Leader {
     peer_last_index: HashMap<String, u64>,
@@ -12,8 +13,8 @@ pub struct Leader {
 
 impl Leader {
     pub fn new(peers: Vec<String>, idle_timeout: u64) -> Self {
-        println!("A new Leader ARISES");
-        println!("leader_idle_timeout: {}", idle_timeout);
+        info!(target: "raft_leader", "a wild new leader appers");
+        info!(target: "raft_leader", "leader idle timeout: {}", idle_timeout);
         let mut leader = Self {
             peer_last_index: HashMap::new(),
             idle_ticks: 0,
@@ -28,7 +29,7 @@ impl Leader {
 
 impl Role<Leader> {
     pub fn tick(mut self) -> Node {
-        println!("leader tick");
+        info!(target: "raft_leader", "leader tick");
         self.role.idle_ticks += 1;
 
         if self.role.idle_ticks >= self.role.idle_timeout {
@@ -46,10 +47,9 @@ impl Role<Leader> {
     }
 
     fn broadcast_heartbeat(self) -> Node {
-        println!(
-            "broadcast_heartbeat, leader term is: {}",
-            self.log.last_term
-        );
+        info!(target: "raft_leader", 
+              "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
+
         for peer in self.peers.iter() {
             self.node_tx
                 .send(Message::new(
@@ -62,7 +62,7 @@ impl Role<Leader> {
                     },
                 ))
                 .unwrap();
-            println!("peer: {}", peer);
+            info!(target: "raft_leader", "message sent to peer: {}", peer);
         }
 
         self.into()

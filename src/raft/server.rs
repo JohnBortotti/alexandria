@@ -11,6 +11,7 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::{TcpListenerStream, UnboundedReceiverStream};
 use tokio_stream::StreamExt as _;
+use log::info;
 
 pub struct Server {
     node: node::Node,
@@ -18,9 +19,11 @@ pub struct Server {
     node_rx: UnboundedReceiver<message::Message>,
 }
 
+// Raft API entrypoint, on startup, user calls Server::new
 impl Server {
     pub async fn new(id: &str, peers: Vec<String>, log: node::Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
+        info!(target: "raft", "raft server starting");
         Self {
             node: node::Node::new(id, peers.clone(), log, node_tx).await,
             peers,
@@ -29,7 +32,6 @@ impl Server {
     }
 
     pub async fn serve(self, tcp_listener: TcpListener) -> Result<(), &'static str> {
-        // TODO: test single thread vs multithreading (spawn or forwarding messages on single runtime)
         let (tcp_inbound_tx, tcp_inbound_rx) = unbounded_channel::<message::Message>();
         tokio::spawn(Self::inbound_receiving_tcp(tcp_listener, tcp_inbound_tx));
         tokio::spawn(Self::inbound_sending_tcp(self.node_rx, self.peers));
@@ -72,6 +74,7 @@ impl Server {
                         req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                     if req_body.get(1).is_none() {
+                        info!(target: "raft", "message incorrect");
                         panic!("message incorrect");
                     };
 
@@ -84,7 +87,8 @@ impl Server {
                     let _ = socket.try_write(res.as_bytes());
                 }
                 Err(e) => {
-                    eprintln!("Erro ao ler os dados: {}", e);
+                    info!(target: "raft", "error on reading tcp data: {}", e);
+                    // eprintln!("Erro ao ler os dados: {}", e);
                 }
             }
         }
@@ -112,6 +116,7 @@ impl Server {
                             Ok(mut stream) => stream.write(http_packet.as_bytes()),
                             _ => {
                                 println!("connection refused, message ignored");
+                                info!(target: "raft", "connection refused, message ignored");
                                 return;
                             }
                         };
@@ -121,7 +126,7 @@ impl Server {
                     let _ = match TcpStream::connect(addr) {
                         Ok(mut stream) => stream.write(http_packet.as_bytes()),
                         _ => {
-                            println!("connection refused, message ignored");
+                            info!(target: "raft", "connection refused, message ignored");
                             return Ok(());
                         }
                     };

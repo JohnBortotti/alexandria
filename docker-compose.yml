@@ -6,7 +6,7 @@ services:
       context: .
     environment:
       - PEER_ADDR=192.30.0.101:8080
-      - PEERS=192.30.0.102:8080
+      - PEERS=192.30.0.102:8080, 192.30.0.103:8080
     networks:
       raft_network:
         ipv4_address: 192.30.0.101
@@ -18,12 +18,24 @@ services:
       context: .
     environment:
       - PEER_ADDR=192.30.0.102:8080
-      - PEERS=192.30.0.101:8080
+      - PEERS=192.30.0.101:8080, 192.30.0.103:8080
     networks:
       raft_network:
         ipv4_address: 192.30.0.102
     ports:
       - "8082:8080"
+
+  peer3:
+    build:
+      context: .
+    environment:
+      - PEER_ADDR=192.30.0.103:8080
+      - PEERS=192.30.0.101:8080, 192.30.0.102:8080
+    networks:
+      raft_network:
+        ipv4_address: 192.30.0.103
+    ports:
+      - "8083:8080"
 
 networks:
   raft_network:
