@@ -114,17 +114,18 @@ impl Server {
                         let _ = match TcpStream::connect(peer) {
                             Ok(mut stream) => stream.write(http_packet.as_bytes()),
                             _ => {
-                                info!(target: "raft", "connection refused, message ignored");
+                                info!(target: "raft", "tcp connection refused (broadcast)");
                                 return;
                             }
                         };
                     });
                 }
                 Peer(addr) => {
+                    info!(target: "raft", "tcp sending individual message to peer: {:?}", addr);
                     let _ = match TcpStream::connect(addr) {
                         Ok(mut stream) => stream.write(http_packet.as_bytes()),
                         _ => {
-                            info!(target: "raft", "connection refused, message ignored");
+                            info!(target: "raft", "tcp connection refused (individual)");
                             return Ok(());
                         }
                     };
