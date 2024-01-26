@@ -100,7 +100,6 @@ impl Role<Follower> {
                 panic!("{}", error);
             }
 
-            println!("first election request sent");
             info!(target: "raft_follower", "follower sent first election request");
             candidate.into()
         } else {

@@ -30,7 +30,6 @@ impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
             Event::AppendEntries { index: _, term } => {
-                println!("candidate receiving a appendEntries");
                 info!(target: "raft_candidate", 
                       "candidate is receiving an appendEntries, checking message term...");
                 if term >= self.log.last_term {
