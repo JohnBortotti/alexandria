@@ -11,10 +11,8 @@ use log::info;
 async fn main() {
     let _ = simple_logging::log_to_file("./test.log", LevelFilter::Info);
 
-    // let env_addr = env::var("PEER_ADDR").expect("PEER_ADDR env var not found");
-    // let env_peers = env::var("PEERS").expect("PEERS env var not found");
-    let env_addr = "0.0.0.0";
-    let env_peers = "";
+    let env_addr = env::var("PEER_ADDR").expect("PEER_ADDR env var not found");
+    let env_peers = env::var("PEERS").expect("PEERS env var not found");
 
     let _ = env_peers.len();
 

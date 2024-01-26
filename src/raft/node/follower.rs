@@ -1,6 +1,7 @@
 use super::super::{message::Address, message::Event, message::Message};
 use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
+use log::info;
 
 pub struct Follower {
     pub leader: Option<String>,
@@ -22,13 +23,14 @@ impl Follower {
 
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
-        println!("follower receiving message");
+        info!(target: "raft_follower", "the follower is receiving a message");
         if self.is_leader(&msg.from) {
             self.role.leader_seen_ticks = 0;
         }
 
         if self.role.leader.is_none() {
-            println!("dont know any leader, following the peer: {:?}", msg.from);
+            info!(target: "raft_follower",
+                  "follower dont know any leader, now starts following peer: {:?}", msg.from);
             return Ok(self.follow(msg.from));
         }
 
@@ -39,11 +41,13 @@ impl Role<Follower> {
                 }
             }
             Event::RequestVote { term } => {
-                println!("follower receiving a requestVote");
+                info!(target: "raft_follower", 
+                      "follower is receiving a requestVote");
                 if term > self.log.last_term {
                     match msg.from {
                         Address::Peer(sender) => {
-                            println!("voting for peer {:?}", sender);
+                            info!(target: "raft_follower", 
+                                  "the follower is voting for peer {:?}", sender);
                             let res = Message::new(
                                 term,
                                 Address::Peer(self.id.clone()),
@@ -55,7 +59,8 @@ impl Role<Follower> {
                             );
 
                             self.node_tx.send(res).unwrap();
-                            println!("follower granted a vote, reseting leader_seen_ticks");
+                            info!(target: "raft_follower", 
+                                  "follower granted a vote, reseting leader_seen_ticks");
                             self.role.leader_seen_ticks = 0;
                         }
                         _ => panic!("Unexpected sender address"),
@@ -63,7 +68,8 @@ impl Role<Follower> {
                 }
             }
             Event::Vote { .. } => {
-                println!("follower receiving vote, ignoring")
+                info!(target: "raft_follower", 
+                      "follower receiving vote, ignoring because its not a candidate");
             }
         };
 
@@ -71,11 +77,11 @@ impl Role<Follower> {
     }
 
     pub fn tick(mut self) -> Node {
-        println!("follower tick");
+        info!(target: "raft_follower", "follower tick");
         self.role.leader_seen_ticks += 1;
 
         if self.role.leader_seen_ticks >= self.role.leader_seen_timeout {
-            println!("starting election");
+            info!(target: "raft_follower", "follower starting an election");
             self.log.last_term += 1;
             let candidate = self.become_role(Candidate::new(
                 CONFIG.raft.candidate_election_timeout,
@@ -95,6 +101,7 @@ impl Role<Follower> {
             }
 
             println!("first election request sent");
+            info!(target: "raft_follower", "follower sent first election request");
             candidate.into()
         } else {
             self.into()

@@ -2,6 +2,7 @@ use super::super::{message::Address, message::Event, message::Message};
 use super::{follower::Follower, leader::Leader, Node, Role};
 use crate::utils::config::CONFIG;
 use rand::Rng;
+use log::info;
 
 pub struct Candidate {
     election_ticks: u64,
@@ -14,7 +15,8 @@ impl Candidate {
     pub fn new(election_timeout: u64, election_timeout_rand: u64, votes: u64) -> Self {
         let random_timeout = rand::thread_rng()
             .gen_range(election_timeout..election_timeout + election_timeout_rand);
-        println!("new candidate here, rand_timeout is {:?}", random_timeout);
+        info!(target: "raft_candidate", 
+              "new candidate created, random_timeout is {:?}", random_timeout);
         Self {
             election_ticks: 0,
             election_timeout: random_timeout,
@@ -29,12 +31,15 @@ impl Role<Candidate> {
         match msg.event {
             Event::AppendEntries { index: _, term } => {
                 println!("candidate receiving a appendEntries");
+                info!(target: "raft_candidate", 
+                      "candidate is receiving an appendEntries, checking message term...");
                 if term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
                         _ => panic!("Unexpected Address"),
                     };
-
+                    info!(target: "raft_candidate", 
+                          "candidate is becoming follwer");
                     Ok(self
                         .become_role(Follower::new(
                             Some(address),
@@ -43,13 +48,17 @@ impl Role<Candidate> {
                         ))
                         .into())
                 } else {
+                    info!(target: "raft_candidate", 
+                          "candidate ignored the appendEntries");
                     Ok(self.into())
                 }
             }
             Event::RequestVote { term } => {
-                println!("candidate receiving a requestVote");
+                info!(target: "raft_candidate", 
+                      "candidate received a requestVote, checking message term...");
                 if term > self.log.last_term {
-                    println!("voting on the other peer wich has a bigger term");
+                    info!(target: "raft_candidate", 
+                          "candidate is voting on the other peer wich has a bigger term");
                     let from = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
                         _ => panic!("Unexpected Address"),
@@ -75,15 +84,14 @@ impl Role<Candidate> {
                         ))
                         .into())
                 } else {
-                    println!("ignoring the requestVote, my term is bigger");
+                    info!(target: "raft_candidate", 
+                          "candidate is ignoring the requestVote");
                     Ok(self.into())
                 }
             }
             Event::Vote { term, voted_for } => {
-                println!(
-                    "candidate receiving a vote, term: {}, voted_for: {}",
-                    term, voted_for
-                );
+                info!(target: "raft_candidate", 
+                      "candidate is receiving a vote, term: {}, voted_for: {}", term, voted_for);
                 self.role.votes += 1;
 
                 if self.role.votes >= self.peers.len() as u64 {
@@ -99,11 +107,11 @@ impl Role<Candidate> {
     }
 
     pub fn tick(mut self) -> Node {
-        println!("candidate tick");
+        info!(target: "raft_candidate", "candidate tick");
         self.role.election_ticks += 1;
 
         if self.role.election_ticks >= self.role.election_timeout {
-            println!("election timed out, starting new election");
+            info!(target: "raft_candidate", "election timed out, starting a new election");
             self.log.last_term += 1;
             self.role = Candidate::new(
                 self.role.election_timeout,
