@@ -9,10 +9,12 @@ use log::info;
 
 #[tokio::main]
 async fn main() {
-    let _ = simple_logging::log_to_file("./test.log", LevelFilter::Info);
+    let _ = simple_logging::log_to_file("./logs/info.log", LevelFilter::Info);
 
     let env_addr = env::var("PEER_ADDR").expect("PEER_ADDR env var not found");
     let env_peers = env::var("PEERS").expect("PEERS env var not found");
+
+    info!(target: "main", "starting peer: {}", env_addr);
 
     let _ = env_peers.len();
 
