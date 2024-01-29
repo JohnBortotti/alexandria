@@ -50,20 +50,32 @@ impl Role<Leader> {
         info!(target: "raft_leader", 
               "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
 
-        for peer in self.peers.iter() {
-            self.node_tx
-                .send(Message::new(
-                    self.log.last_term,
-                    Peer(self.id.clone()),
-                    Broadcast,
-                    AppendEntries {
-                        index: 0,
-                        term: self.log.last_term,
-                    },
-                ))
-                .unwrap();
-            info!(target: "raft_leader", "message sent to peer: {}", peer);
-        }
+        self.node_tx.send(
+            Message::new(
+                self.log.last_term,
+                Peer(self.id.clone()),
+                Broadcast,
+                AppendEntries {
+                    index: 0,
+                    term: self.log.last_term
+                }
+                )).unwrap();
+
+        // TODO: check if this can be deleted
+        // for peer in self.peers.iter() {
+        //     self.node_tx
+        //         .send(Message::new(
+        //             self.log.last_term,
+        //             Peer(self.id.clone()),
+        //             Broadcast,
+        //             AppendEntries {
+        //                 index: 0,
+        //                 term: self.log.last_term,
+        //             },
+        //         ))
+        //         .unwrap();
+        //     info!(target: "raft_leader", "message sent to peer: {}", peer);
+        // }
 
         self.into()
     }

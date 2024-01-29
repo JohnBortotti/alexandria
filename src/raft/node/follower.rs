@@ -23,38 +23,42 @@ impl Follower {
 
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
-        info!(target: "raft_follower", "the follower is receiving a message");
+        info!(target: "raft_follower", "the follower is receiving a message from {:?}", &msg.from);
         if self.is_leader(&msg.from) {
+            info!(target: "raft_follower", "message from leader, reseting seen ticks");
             self.role.leader_seen_ticks = 0;
         }
 
-        if self.role.leader.is_none() {
-            info!(target: "raft_follower",
-                  "follower dont know any leader, now starts following peer: {:?}", msg.from);
-            return Ok(self.follow(msg.from));
-        }
+        // keep this for now, i dont know if works without it
+        // if self.role.leader.is_none() {
+        //     info!(target: "raft_follower",
+        //           "follower dont know any leader, now starts following peer: {:?}", msg.from);
+        //     self.role.leader_seen_ticks = 0;
+        //     info!(target: "raft_follower", 
+        //           "follower reseted timeout, leader_seen_timeout is: {}", self.role.leader_seen_timeout);
+        //     return Ok(self.follow(msg.from));
+        // }
 
         match msg.event {
             Event::AppendEntries { index: _, term } => {
                 if self.is_leader(&msg.from) {
+                    info!(target: "raft_follower", "receiving appendEntries from leader");
                     self.log.append(term, None);
                 }
             }
             Event::RequestVote { term } => {
-                info!(target: "raft_follower", 
-                      "follower is receiving a requestVote");
+                info!(target: "raft_follower", "follower is receiving a requestVote");
                 if term > self.log.last_term {
                     match msg.from {
                         Address::Peer(sender) => {
-                            info!(target: "raft_follower", 
-                                  "the follower is voting for peer {:?}", sender);
+                            info!(target: "raft_follower", "the follower is voting for peer {:?}", sender);
                             let res = Message::new(
                                 term,
                                 Address::Peer(self.id.clone()),
                                 Address::Broadcast,
                                 Event::Vote {
                                     term,
-                                    voted_for: sender,
+                                    voted_for: sender.clone(),
                                 },
                             );
 
@@ -62,14 +66,18 @@ impl Role<Follower> {
                             info!(target: "raft_follower", 
                                   "follower granted a vote, reseting leader_seen_ticks");
                             self.role.leader_seen_ticks = 0;
+                            info!(target: "raft_follower", "following the peer i voted for");
+
+                            return Ok(self.follow(Address::Peer(sender)))
                         }
                         _ => panic!("Unexpected sender address"),
                     };
                 }
             }
-            Event::Vote { .. } => {
+            Event::Vote { term, voted_for } => {
                 info!(target: "raft_follower", 
-                      "follower receiving vote, ignoring because its not a candidate");
+                      "follower is receiving a vote messge, term: {}, voted_for: {}, from: {:?}", 
+                      term, voted_for, &msg.from);
             }
         };
 
@@ -100,7 +108,7 @@ impl Role<Follower> {
                 panic!("{}", error);
             }
 
-            info!(target: "raft_follower", "follower sent first election request");
+            info!(target: "raft_follower", "follower sent election request");
             candidate.into()
         } else {
             self.into()

@@ -89,16 +89,29 @@ impl Role<Candidate> {
                 }
             }
             Event::Vote { term, voted_for } => {
-                info!(target: "raft_candidate", 
-                      "candidate is receiving a vote, term: {}, voted_for: {}", term, voted_for);
-                self.role.votes += 1;
+                let from = match msg.from {
+                    Address::Peer(addr) => addr.to_string(),
+                    _ => panic!("Unexpected Address"),
+                };
 
-                if self.role.votes >= self.peers.len() as u64 {
-                    let peers = self.peers.clone();
-                    Ok(self
-                        .become_role(Leader::new(peers, CONFIG.raft.leader_idle_timeout))
-                        .into())
+                info!(target: "raft_candidate", 
+                      "candidate is receiving a vote message, term: {}, voted_for: {}, from: {}", 
+                      term, voted_for, from);
+
+                if voted_for == self.id {
+                    info!(target: "raft_candidate", "candidate received a vote");
+                    self.role.votes += 1;
+
+                    if self.role.votes >= self.peers.len() as u64 {
+                        let peers = self.peers.clone();
+                        Ok(self
+                           .become_role(Leader::new(peers, CONFIG.raft.leader_idle_timeout))
+                           .into())
+                    } else {
+                        Ok(self.into())
+                    }
                 } else {
+                    info!(target: "raft_candidate", "the voting is for another candidate");
                     Ok(self.into())
                 }
             } // TODO: become leader when receive majority of votes
