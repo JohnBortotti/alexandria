@@ -4,5 +4,3 @@ raft:
   candidate_election_timeout: 5
   candidate_election_timeout_rand: 6
   leader_idle_timeout: 4
-
-

@@ -114,7 +114,11 @@ impl Role<Candidate> {
                     info!(target: "raft_candidate", "the voting is for another candidate");
                     Ok(self.into())
                 }
-            } // TODO: become leader when receive majority of votes
+            },
+            _ => { 
+                info!(target: "raft_candidate", "receiving undefined message event");
+                Ok(self.into()) 
+            }
         }
     }
 

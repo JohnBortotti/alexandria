@@ -1,9 +1,8 @@
-use super::super::message::Address::{Broadcast, Peer};
-use super::super::message::Event::AppendEntries;
-use super::super::message::Message;
 use super::{Node, Role};
+use super::super::{message::Message, message::Event, message::Query, message::Address::{Peer, Broadcast}};
 use std::collections::HashMap;
 use log::info;
+use ron::ser::to_string_pretty;
 
 pub struct Leader {
     peer_last_index: HashMap<String, u64>,
@@ -41,8 +40,26 @@ impl Role<Leader> {
         }
     }
 
-    pub fn step(self, _msg: Message) -> Result<Node, &'static str> {
+    pub fn step(self, msg: Message) -> Result<Node, &'static str> {
         // let _ = self.node_tx.send(Message::new(1, Broadcast, Broadcast, AppendEntries{term:1,index:1}));
+        // TODO: implement leader message handling
+        match msg.event {
+            Event::AppendEntries { index: _, term: _ } => {
+                info!(target: "raft_leader", "leader receiving an AppendEntries");
+            }
+            Event::Vote { term: _, voted_for: _ } => {
+                info!(target: "raft_leader", "leader receiving an Vote");
+            }
+            Event::RequestVote { term: _ } => {
+                info!(target: "raft_leader", "leader receiving an RequestVote");
+            }
+            // when receiving ClientRequest... 
+            Event::ClientRequest { test: a, query: b } => {
+                info!(target: "raft_leader", "leader receiving an ClientRequest");
+                info!(target: "raft_leader", "ClientRequest [ test: {:?}, query: {:?}  ]", a, b);
+            }
+        }
+
         Ok(self.into())
     }
 
@@ -55,7 +72,7 @@ impl Role<Leader> {
                 self.log.last_term,
                 Peer(self.id.clone()),
                 Broadcast,
-                AppendEntries {
+                Event::AppendEntries {
                     index: 0,
                     term: self.log.last_term
                 }

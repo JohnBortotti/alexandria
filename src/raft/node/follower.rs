@@ -29,16 +29,6 @@ impl Role<Follower> {
             self.role.leader_seen_ticks = 0;
         }
 
-        // keep this for now, i dont know if works without it
-        // if self.role.leader.is_none() {
-        //     info!(target: "raft_follower",
-        //           "follower dont know any leader, now starts following peer: {:?}", msg.from);
-        //     self.role.leader_seen_ticks = 0;
-        //     info!(target: "raft_follower", 
-        //           "follower reseted timeout, leader_seen_timeout is: {}", self.role.leader_seen_timeout);
-        //     return Ok(self.follow(msg.from));
-        // }
-
         match msg.event {
             Event::AppendEntries { index: _, term } => {
                 if self.is_leader(&msg.from) {
@@ -78,7 +68,8 @@ impl Role<Follower> {
                 info!(target: "raft_follower", 
                       "follower is receiving a vote messge, term: {}, voted_for: {}, from: {:?}", 
                       term, voted_for, &msg.from);
-            }
+            },
+            _ => { info!(target: "raft_candidate", "receiving undefined message event"); }
         };
 
         Ok(self.into())

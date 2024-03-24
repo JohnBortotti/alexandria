@@ -19,7 +19,7 @@ pub struct Server {
     node_rx: UnboundedReceiver<message::Message>,
 }
 
-// Raft API entrypoint, on startup, user calls Server::new
+// raft server layer to handle peer networking (incoming and sending tcp messages)
 impl Server {
     pub async fn new(id: &str, peers: Vec<String>, log: node::Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
@@ -31,6 +31,8 @@ impl Server {
         }
     }
 
+    // TODO: use hashtables to only send messages to valid peers, 
+    // blocking "external message injection"
     pub async fn serve(self, tcp_listener: TcpListener) -> Result<(), &'static str> {
         let (tcp_inbound_tx, tcp_inbound_rx) = unbounded_channel::<message::Message>();
         tokio::spawn(Self::inbound_receiving_tcp(tcp_listener, tcp_inbound_tx));
@@ -54,6 +56,7 @@ impl Server {
         }
     }
 
+    // receiving messages
     async fn inbound_receiving_tcp(
         listener: TcpListener,
         tcp_inbound_tr: UnboundedSender<message::Message>,
@@ -95,6 +98,7 @@ impl Server {
         Ok(())
     }
 
+    // sending messages to peers
     async fn inbound_sending_tcp(
         node_rx: UnboundedReceiver<message::Message>,
         peers: Vec<String>,

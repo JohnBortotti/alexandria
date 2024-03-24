@@ -30,4 +30,12 @@ pub enum Event {
     AppendEntries { index: u64, term: u64 },
     RequestVote { term: u64 },
     Vote { term: u64, voted_for: String },
+    ClientRequest { test: u64, query: Query }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Query {
+    Get(u64)
+}
+
+

@@ -44,7 +44,7 @@ impl Log {
         self.entries.push(entry);
     }
 
-    // TODO: commit log
+    // TODO: commit log (and implement log replication)
     // pub fn commit(mut self, entry: Entry) {
     //
     // }
