@@ -1,0 +1,36 @@
+notes about the Raft algorithm
+
+
+=== follower role ===
+- when a node is created, it starts as a follower node
+
+- follower has a leader_seen_timeout, when this timeout reaches its limit, the follower 
+increases his last_term, becomes a candidate, and broadcasts a requestVote message (starts an election)
+
+- if a follower receives an appendEntries, ..... (write the log and state_machine)
+
+- if a follower receives an requestVote message, it compares the message term with his own last_term, if the message term is bigger, it broadcasts a vote message (voting for the sender node), and 
+starts following the message sender node, otherwise, it just ignores the message
+
+- if a follower receives an Vote message, it just ignores the message
+
+
+=== candidate role ===
+- candidate starts voting for himself (candidate.role.votes == 1)
+
+- candidate has an election_timeout, when this timeout reaches its limit, the candidate 
+increase his last_term (self last_term+=1) and starts a new election
+
+- when starting a new election, the candidate broadcasts a request_vote message
+
+- if a candidate receives an appendEntries message, it checks the message sender last_term to decide the next step (if the sender last_term is bigger, then start following the new node, otherwise, ignore the message)
+
+- if a candidate receives an requestVote message, it checks the message term, to decide the next step (if the message term is bigger than the candidate last_term, it broadcasts a vote for the requestVote sender, and becomes a follower node, otherwise, ignore the message)
+
+- if a candidate receives an Vote message, it checks the "voted_for" message field and if he is the target, increase its own votes, if he got the majority of votes, become a leader node, otherwise, ignore the message)
+
+
+=== leader role === 
+- the leader node, keep sending hearbeats (broadcast appendEntries messages) to keep leadering
+
+- if a leader receives an ...... (write leader role behavior)
