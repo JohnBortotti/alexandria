@@ -12,7 +12,7 @@ increases his last_term, becomes a candidate, and broadcasts a requestVote messa
 - if a follower receives an requestVote message, it compares the message term with his own last_term, if the message term is bigger, it broadcasts a vote message (voting for the sender node), and 
 starts following the message sender node, otherwise, it just ignores the message
 
-- if a follower receives an Vote message, it just ignores the message
+- if a follower receives a Vote message, it just ignores the message
 
 
 === candidate role ===
@@ -33,4 +33,4 @@ increase his last_term (self last_term+=1) and starts a new election
 === leader role === 
 - the leader node, keep sending hearbeats (broadcast appendEntries messages) to keep leadering
 
-- if a leader receives an ...... (write leader role behavior)
+- if a leader receives a ...... (write leader role behavior)
