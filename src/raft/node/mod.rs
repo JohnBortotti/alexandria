@@ -2,53 +2,12 @@ use super::message::Message;
 use super::state_machine::{Instruction, StateDriver};
 use crate::utils::config::CONFIG;
 use tokio::sync::mpsc;
+use log::Log;
 
 mod candidate;
 mod follower;
 mod leader;
-
-pub struct Entry {
-    index: u64,
-    term: u64,
-    command: Option<Vec<u8>>,
-}
-
-pub struct Log {
-    last_index: u64,
-    last_term: u64,
-    commit_index: u64,
-    commit_term: u64,
-    entries: Vec<Entry>,
-}
-
-impl Log {
-    pub fn new() -> Self {
-        Self {
-            last_index: 0,
-            last_term: 0,
-            commit_index: 0,
-            commit_term: 0,
-            entries: <Vec<Entry>>::default(),
-        }
-    }
-
-    pub fn append(&mut self, term: u64, command: Option<Vec<u8>>) {
-        let entry = Entry {
-            index: self.last_index + 1,
-            term,
-            command,
-        };
-
-        self.last_index += 1;
-        self.last_term = term;
-        self.entries.push(entry);
-    }
-
-    // TODO: commit log (and implement log replication)
-    // pub fn commit(mut self, entry: Entry) {
-    //
-    // }
-}
+pub mod log;
 
 pub enum Node {
     Follower(Role<follower::Follower>),

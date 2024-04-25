@@ -1,8 +1,7 @@
 use super::{Node, Role};
-use super::super::{message::Message, message::Event, message::Query, message::Address::{Peer, Broadcast}};
+use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}};
 use std::collections::HashMap;
 use log::info;
-use ron::ser::to_string_pretty;
 
 pub struct Leader {
     peer_last_index: HashMap<String, u64>,
@@ -40,6 +39,16 @@ impl Role<Leader> {
         }
     }
 
+    // once a leader has been elected, it begins servicing
+    // client requests. Each client request contains a command to
+    // be executed by the replicated state machines.
+    //
+    // the leader appends the command to its log as a new entry, 
+    // then issues AppendEntries RPCs in parallel to each of the other
+    // servers to replicate the entry. When the entry has been
+    // safely replicated (as described below), the leader applies
+    // the entry to its state machine and returns the result of that
+    // execution to the client.
     pub fn step(self, msg: Message) -> Result<Node, &'static str> {
         // let _ = self.node_tx.send(Message::new(1, Broadcast, Broadcast, AppendEntries{term:1,index:1}));
         // TODO: implement leader message handling

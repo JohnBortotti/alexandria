@@ -2,6 +2,7 @@ use super::{
     message,
     message::Address::{Broadcast, Peer},
     node,
+    node::log::Log
 };
 use crate::utils::config::CONFIG;
 use std::io::prelude::*;
@@ -21,7 +22,7 @@ pub struct Server {
 
 // raft server layer to handle peer networking (incoming and sending tcp messages)
 impl Server {
-    pub async fn new(id: &str, peers: Vec<String>, log: node::Log) -> Self {
+    pub async fn new(id: &str, peers: Vec<String>, log: Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
         info!(target: "raft", "raft server starting");
         Self {

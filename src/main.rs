@@ -4,6 +4,7 @@ mod utils;
 
 use std::env;
 use tokio::net::TcpListener;
+use raft::node::log::Log;
 use log::LevelFilter;
 use log::info;
 
@@ -24,7 +25,7 @@ async fn main() {
          vec!()
     };
 
-    let server = raft::server::Server::new(&env_addr, peers, raft::node::Log::new()).await;
+    let server = raft::server::Server::new(&env_addr, peers, Log::new()).await;
 
     let tcp_listener = match TcpListener::bind("0.0.0.0:8080").await {
         Ok(listener) => listener,
