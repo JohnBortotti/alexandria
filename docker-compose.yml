@@ -1,7 +1,6 @@
-version: "3.8"
-
 services:
   peer1:
+    image: alexandria-image
     build:
       context: .
     environment:
@@ -16,8 +15,7 @@ services:
       - ./logs/peer1/:/usr/src/raft/logs/
 
   peer2:
-    build:
-      context: .
+    image: alexandria-image
     environment:
       - PEER_ADDR=192.30.0.102:8080
       - PEERS=192.30.0.101:8080,192.30.0.103:8080
@@ -30,8 +28,7 @@ services:
       - ./logs/peer2/:/usr/src/raft/logs/
 
   peer3:
-    build:
-      context: .
+    image: alexandria-image
     environment:
       - PEER_ADDR=192.30.0.103:8080
       - PEERS=192.30.0.101:8080,192.30.0.102:8080
