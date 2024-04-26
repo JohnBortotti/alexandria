@@ -32,7 +32,6 @@ impl Role<Leader> {
 
         if self.role.idle_ticks >= self.role.idle_timeout {
             self.role.idle_ticks = 0;
-            self.log.last_term += 1;
             self.broadcast_heartbeat()
         } else {
             self.into()
@@ -60,6 +59,9 @@ impl Role<Leader> {
             Event::RequestVote { term: _ } => {
                 info!(target: "raft_leader", "leader receiving an RequestVote");
             }
+            Event::Heartbeat { term: _ } => {
+                info!(target: "raft_leader", "leader receiving an Heartbeat");
+            }
             Event::ClientRequest { command } => {
                 info!(target: "raft_leader", "leader receiving an ClientRequest");
                 info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
@@ -80,6 +82,8 @@ impl Role<Leader> {
                 .unwrap();
 
                 // commit log
+                // broadcast the term
+                //
                 // execute instruction
                 // return response
             }
@@ -97,9 +101,8 @@ impl Role<Leader> {
                 self.log.last_term,
                 Peer(self.id.clone()),
                 Broadcast,
-                Event::AppendEntries {
-                    term: self.log.last_term,
-                    command: String::from("")
+                Event::Heartbeat {
+                    term: self.log.last_term
                 }
                 )).unwrap();
 
@@ -136,20 +139,6 @@ mod test {
         (leader, node_rx, state_rx)
     }
 
-    #[test]
-    fn leader_log_append_on_tick() {
-        let (leader, _node_rx, _) = setup();
-
-        let node = leader.tick().tick().tick().tick();
-
-        match node {
-            Node::Leader(leader) => {
-                assert_eq!(leader.log.last_term, 2);
-            }
-            _ => panic!("Expected node to be Leader")
-        }
-    }
-
     #[tokio::test] 
     async fn leader_broadcasting_heartbeats() {
         let (leader, mut node_rx, _) = setup();
@@ -159,7 +148,7 @@ mod test {
 
         match msg {
            Message { term, from, to, event }  => {
-               assert_eq!(term, 1);
+               assert_eq!(term, 0);
 
                match from {
                    Peer(peer_id) => { assert_eq!(peer_id, "l") }
@@ -172,7 +161,7 @@ mod test {
                };
 
                match event {
-                   Event::AppendEntries { term, .. } => { assert_eq!(term, 1) }
+                   Event::Heartbeat { term, .. } => { assert_eq!(term, 0) }
                    _ => panic!("Expected event to be an AppendEntries")
                };
            }
