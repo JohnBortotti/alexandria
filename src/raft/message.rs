@@ -27,15 +27,8 @@ pub enum Address {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
-    AppendEntries { index: u64, term: u64 },
+    AppendEntries { term: u64, command: String },
     RequestVote { term: u64 },
     Vote { term: u64, voted_for: String },
-    ClientRequest { test: u64, query: Query }
+    ClientRequest { command: String }
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Query {
-    Get(u64)
-}
-
-

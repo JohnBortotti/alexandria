@@ -2,7 +2,7 @@ use super::message::Message;
 use super::state_machine::{Instruction, StateDriver};
 use crate::utils::config::CONFIG;
 use tokio::sync::mpsc;
-use log::Log;
+use self::log::Log;
 
 mod candidate;
 mod follower;

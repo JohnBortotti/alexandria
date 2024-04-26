@@ -46,14 +46,12 @@ impl Role<Leader> {
     // the leader appends the command to its log as a new entry, 
     // then issues AppendEntries RPCs in parallel to each of the other
     // servers to replicate the entry. When the entry has been
-    // safely replicated (as described below), the leader applies
+    // safely replicated, the leader applies
     // the entry to its state machine and returns the result of that
     // execution to the client.
-    pub fn step(self, msg: Message) -> Result<Node, &'static str> {
-        // let _ = self.node_tx.send(Message::new(1, Broadcast, Broadcast, AppendEntries{term:1,index:1}));
-        // TODO: implement leader message handling
+    pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
-            Event::AppendEntries { index: _, term: _ } => {
+            Event::AppendEntries { .. } => {
                 info!(target: "raft_leader", "leader receiving an AppendEntries");
             }
             Event::Vote { term: _, voted_for: _ } => {
@@ -62,10 +60,28 @@ impl Role<Leader> {
             Event::RequestVote { term: _ } => {
                 info!(target: "raft_leader", "leader receiving an RequestVote");
             }
-            // when receiving ClientRequest... 
-            Event::ClientRequest { test: a, query: b } => {
+            Event::ClientRequest { command } => {
                 info!(target: "raft_leader", "leader receiving an ClientRequest");
-                info!(target: "raft_leader", "ClientRequest [ test: {:?}, query: {:?}  ]", a, b);
+                info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
+
+                // set new last_term
+                let new_term = self.log.last_term + 1;
+                
+                // append log entry
+                self.log.append(new_term, command.clone());
+                
+                // replicate log
+                self.node_tx.send(Message::new(
+                    new_term,
+                    Peer(self.id.clone()),
+                    Broadcast,
+                    Event::AppendEntries { term: new_term, command }
+                ))
+                .unwrap();
+
+                // commit log
+                // execute instruction
+                // return response
             }
         }
 
@@ -82,11 +98,85 @@ impl Role<Leader> {
                 Peer(self.id.clone()),
                 Broadcast,
                 Event::AppendEntries {
-                    index: 0,
-                    term: self.log.last_term
+                    term: self.log.last_term,
+                    command: String::from("")
                 }
                 )).unwrap();
 
         self.into()
+    }
+}
+
+mod test {
+    use super::*;
+    use crate::raft::message::Message;
+    use crate::raft::node::Log;
+    use crate::raft::state_machine::Instruction;
+    use tokio::sync::mpsc::UnboundedReceiver;
+
+    fn setup() -> (
+        Role<Leader>,
+        UnboundedReceiver<Message>,
+        UnboundedReceiver<Instruction>,
+        ) {
+        let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let peers = vec!["a".into(), "b".into(), "c".into()];
+
+        let leader = Role {
+            id: "l".into(),
+            peers: peers.clone(),
+            log: Log::new(),
+            node_tx,
+            state_tx,
+            role: Leader::new(peers, 2),
+        };
+
+        (leader, node_rx, state_rx)
+    }
+
+    #[test]
+    fn leader_log_append_on_tick() {
+        let (leader, _node_rx, _) = setup();
+
+        let node = leader.tick().tick().tick().tick();
+
+        match node {
+            Node::Leader(leader) => {
+                assert_eq!(leader.log.last_term, 2);
+            }
+            _ => panic!("Expected node to be Leader")
+        }
+    }
+
+    #[tokio::test] 
+    async fn leader_broadcasting_heartbeats() {
+        let (leader, mut node_rx, _) = setup();
+
+        leader.tick().tick();
+        let msg = node_rx.recv().await.unwrap();
+
+        match msg {
+           Message { term, from, to, event }  => {
+               assert_eq!(term, 1);
+
+               match from {
+                   Peer(peer_id) => { assert_eq!(peer_id, "l") }
+                   _ => panic!("Unexpected address")
+               };
+
+               match to {
+                   Broadcast => {},
+                   _ => panic!("Expected message to be broadcast")
+               };
+
+               match event {
+                   Event::AppendEntries { term, .. } => { assert_eq!(term, 1) }
+                   _ => panic!("Expected event to be an AppendEntries")
+               };
+           }
+
+        }
     }
 }

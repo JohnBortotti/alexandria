@@ -1,12 +1,10 @@
-pub enum Command {
-    Get,
-    Set
-}
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Entry {
     index: u64,
     term: u64,
-    command: Option<Command>,
+    command: String,
 }
 
 pub struct Log {
@@ -28,7 +26,7 @@ impl Log {
         }
     }
 
-    pub fn append(&mut self, term: u64, command: Option<Command>) {
+    pub fn append(&mut self, term: u64, command: String) {
         let entry = Entry {
             index: self.last_index + 1,
             term,
