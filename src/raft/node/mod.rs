@@ -1,5 +1,5 @@
 use super::message::Message;
-use super::state_machine::{Instruction, StateDriver};
+use super::state_machine::{Instruction, StateMachine};
 use crate::utils::config::CONFIG;
 use tokio::sync::mpsc;
 use self::log::Log;
@@ -22,10 +22,10 @@ impl Node {
         log: Log,
         node_tx: mpsc::UnboundedSender<Message>,
     ) -> Self {
+        // spawn state_machine task
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let driver = StateDriver::new(state_rx, node_tx.clone());
-        tokio::spawn(driver.run());
+        let state_machine = StateMachine::new(state_rx, node_tx.clone());
+        tokio::spawn(state_machine.run());
 
         let node = Role::<follower::Follower> {
             id: id.to_string(),

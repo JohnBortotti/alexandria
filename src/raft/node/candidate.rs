@@ -29,7 +29,7 @@ impl Candidate {
 impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
-            Event::AppendEntries { term, command: _ } => {
+            Event::AppendEntries { term, command: _, index: _ } => {
                 info!(target: "raft_candidate", 
                       "candidate is receiving an appendEntries, checking message term...");
                 if term >= self.log.last_term {
@@ -219,7 +219,7 @@ mod tests {
         let (candidate, _, _) = setup();
 
         let msg = Message {
-            event: Event::AppendEntries { term: 2, command: String::from("") },
+            event: Event::AppendEntries { term: 2, index: 1, command: String::from("") },
             term: 2,
             to: Address::Broadcast,
             from: Address::Peer("c".into()),

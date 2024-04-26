@@ -27,7 +27,7 @@ pub enum Address {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
-    AppendEntries { term: u64, command: String },
+    AppendEntries { term: u64, index: u64, command: String },
     Heartbeat { term: u64 },
     RequestVote { term: u64 },
     Vote { term: u64, voted_for: String },

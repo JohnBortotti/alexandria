@@ -1,5 +1,6 @@
 use super::{Node, Role};
-use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}};
+use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}, 
+state_machine::Instruction};
 use std::collections::HashMap;
 use log::info;
 
@@ -66,26 +67,30 @@ impl Role<Leader> {
                 info!(target: "raft_leader", "leader receiving an ClientRequest");
                 info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
 
-                // set new last_term
-                let new_term = self.log.last_term + 1;
-                
                 // append log entry
-                self.log.append(new_term, command.clone());
+                self.log.append(self.log.last_term, command.clone());
                 
-                // replicate log
+                // breadcast log
                 self.node_tx.send(Message::new(
-                    new_term,
+                    self.log.last_term,
                     Peer(self.id.clone()),
                     Broadcast,
-                    Event::AppendEntries { term: new_term, command }
+                    Event::AppendEntries { 
+                        term: self.log.last_term, 
+                        index: self.log.last_index, 
+                        command: command.clone()
+                    }
                 ))
                 .unwrap();
 
-                // commit log
-                // broadcast the term
-                //
-                // execute instruction
-                // return response
+                // ensure the log was replicated (receives by majority of nodes),
+                
+                // then apply to the state_machine and commit log
+                self.state_tx.send(Instruction {
+                    index: self.log.last_index+1,
+                    term: self.log.last_index,
+                    command
+                }).unwrap();
             }
         }
 
@@ -104,7 +109,7 @@ impl Role<Leader> {
                 Event::Heartbeat {
                     term: self.log.last_term
                 }
-                )).unwrap();
+        )).unwrap();
 
         self.into()
     }
@@ -167,5 +172,30 @@ mod test {
            }
 
         }
+    }
+
+    #[tokio::test]
+    async fn leader_receiving_client_command() {
+        let (leader, _node_rx, _state_rx) = setup();
+
+        let msg = Message {
+            event: Event::ClientRequest { command: String::from("") },
+            term: 2,
+            to: Peer("l".to_string()),
+            from: Peer("c".into()),
+        };
+
+        let node = leader.step(msg);
+
+        match node {
+            Ok(Node::Leader(nleader)) => {
+                assert_eq!(nleader.log.last_term, 0);
+                assert_eq!(nleader.log.last_index, 1);
+            }
+            _ => panic!("Expected node to be Leader")
+            
+        }
+
+
     }
 }
