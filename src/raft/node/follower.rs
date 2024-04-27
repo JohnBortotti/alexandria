@@ -31,24 +31,23 @@ impl Role<Follower> {
         }
 
         match msg.event {
-            Event::AppendEntries { term, entries: _, index: _ } => {
+            Event::AppendEntries { entries: _, index: _ } => {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
-                    self.log.append(term, vec!(String::from("")));
+                    self.log.append(msg.term, vec!(String::from("")));
                 }
             }
-            Event::RequestVote { term } => {
+            Event::RequestVote {} => {
                 info!(target: "raft_follower", "follower is receiving a requestVote");
-                if term > self.log.last_term {
+                if msg.term > self.log.last_term {
                     match msg.from {
                         Address::Peer(sender) => {
                             info!(target: "raft_follower", "the follower is voting for peer {:?}", sender);
                             let res = Message::new(
-                                term,
+                                msg.term,
                                 Address::Peer(self.id.clone()),
                                 Address::Broadcast,
                                 Event::Vote {
-                                    term,
                                     voted_for: sender.clone(),
                                 },
                             );
@@ -65,10 +64,10 @@ impl Role<Follower> {
                     };
                 }
             }
-            Event::Vote { term, voted_for } => {
+            Event::Vote { voted_for } => {
                 info!(target: "raft_follower", 
                       "follower is receiving a vote messge, term: {}, voted_for: {}, from: {:?}", 
-                      term, voted_for, &msg.from);
+                      msg.term, voted_for, &msg.from);
             },
             _ => { info!(target: "raft_candidate", "receiving undefined message event"); }
         };
@@ -93,9 +92,7 @@ impl Role<Follower> {
                 candidate.log.last_term,
                 Address::Peer(candidate.id.clone()),
                 Address::Broadcast,
-                Event::RequestVote {
-                    term: candidate.log.last_term,
-                },
+                Event::RequestVote {},
             )) {
                 panic!("{}", error);
             }
@@ -195,7 +192,7 @@ mod tests {
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::AppendEntries { term: 1, index: 1, entries: vec!(String::from("") )},
+                    event: Event::AppendEntries { index: 1, entries: vec!(String::from("") )},
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),

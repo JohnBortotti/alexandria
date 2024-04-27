@@ -29,10 +29,10 @@ impl Candidate {
 impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
-            Event::AppendEntries { term, entries: _, index: _ } => {
+            Event::AppendEntries { entries: _, index: _ } => {
                 info!(target: "raft_candidate", 
                       "candidate is receiving an appendEntries, checking message term...");
-                if term >= self.log.last_term {
+                if msg.term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
                         _ => panic!("Unexpected Address"),
@@ -52,10 +52,10 @@ impl Role<Candidate> {
                     Ok(self.into())
                 }
             }
-            Event::RequestVote { term } => {
+            Event::RequestVote {} => {
                 info!(target: "raft_candidate", 
                       "candidate received a requestVote, checking message term...");
-                if term > self.log.last_term {
+                if msg.term > self.log.last_term {
                     info!(target: "raft_candidate", 
                           "candidate is voting on the other peer wich has a bigger term");
                     let from = match msg.from {
@@ -65,11 +65,10 @@ impl Role<Candidate> {
 
                     self.node_tx
                         .send(Message::new(
-                            term,
+                            msg.term,
                             Address::Peer(self.id.clone()),
                             Address::Broadcast,
                             Event::Vote {
-                                term,
                                 voted_for: from.clone(),
                             },
                         ))
@@ -88,7 +87,7 @@ impl Role<Candidate> {
                     Ok(self.into())
                 }
             }
-            Event::Vote { term, voted_for } => {
+            Event::Vote { voted_for } => {
                 let from = match msg.from {
                     Address::Peer(addr) => addr.to_string(),
                     _ => panic!("Unexpected Address"),
@@ -96,7 +95,7 @@ impl Role<Candidate> {
 
                 info!(target: "raft_candidate", 
                       "candidate is receiving a vote message, term: {}, voted_for: {}, from: {}", 
-                      term, voted_for, from);
+                      msg.term, voted_for, from);
 
                 if voted_for == self.id {
                     info!(target: "raft_candidate", "candidate received a vote");
@@ -140,9 +139,7 @@ impl Role<Candidate> {
                 self.log.last_term,
                 Address::Peer(self.id.clone()),
                 Address::Broadcast,
-                Event::RequestVote {
-                    term: self.log.last_term,
-                },
+                Event::RequestVote {},
             )) {
                 panic!("{}", error);
             };
@@ -220,7 +217,7 @@ mod tests {
         let (candidate, _, _) = setup();
 
         let msg = Message {
-            event: Event::AppendEntries { term: 2, index: 1, entries: vec!(String::from("")) },
+            event: Event::AppendEntries { index: 1, entries: vec!(String::from("")) },
             term: 2,
             to: Address::Broadcast,
             from: Address::Peer("c".into()),

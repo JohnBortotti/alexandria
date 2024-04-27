@@ -28,10 +28,10 @@ pub enum Address {
 // todo: remove the term field (since every message already contains the current term)
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
-    AppendEntries { term: u64, index: u64, entries: Vec<String> },
-    AckEntries { term: u64, index: u64 },
-    Heartbeat { term: u64 },
-    RequestVote { term: u64 },
-    Vote { term: u64, voted_for: String },
+    AppendEntries { index: u64, entries: Vec<String> },
+    AckEntries { index: u64 },
+    Heartbeat {},
+    RequestVote {},
+    Vote { voted_for: String },
     ClientRequest { command: String }
 }

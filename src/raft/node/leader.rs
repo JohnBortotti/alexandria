@@ -48,9 +48,7 @@ impl Role<Leader> {
                 self.log.last_term,
                 Peer(self.id.clone()),
                 Broadcast,
-                Event::Heartbeat {
-                    term: self.log.last_term
-                }
+                Event::Heartbeat {}
         )).unwrap();
 
         self.into()
@@ -61,13 +59,13 @@ impl Role<Leader> {
             Event::AppendEntries { .. } => {
                 info!(target: "raft_leader", "leader receiving an AppendEntries");
             }
-            Event::Vote { term: _, voted_for: _ } => {
+            Event::Vote { voted_for: _ } => {
                 info!(target: "raft_leader", "leader receiving an Vote");
             }
-            Event::RequestVote { term: _ } => {
+            Event::RequestVote {} => {
                 info!(target: "raft_leader", "leader receiving an RequestVote");
             }
-            Event::Heartbeat { term: _ } => {
+            Event::Heartbeat {} => {
                 info!(target: "raft_leader", "leader receiving an Heartbeat");
             }
             Event::AckEntries { index } => {
@@ -92,7 +90,6 @@ impl Role<Leader> {
                     Peer(self.id.clone()),
                     Broadcast,
                     Event::AppendEntries { 
-                        term: self.log.last_term, 
                         index: self.log.last_index, 
                         entries: vec!(command.clone())
                     }
@@ -161,7 +158,7 @@ mod test {
                };
 
                match event {
-                   Event::Heartbeat { term, .. } => { assert_eq!(term, 0) }
+                   Event::Heartbeat {} => { assert_eq!(term, 0) }
                    _ => panic!("Expected event to be an AppendEntries")
                };
            }
