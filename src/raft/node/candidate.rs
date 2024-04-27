@@ -116,7 +116,7 @@ impl Role<Candidate> {
                 }
             },
             _ => { 
-                info!(target: "raft_candidate", "receiving undefined message event");
+                info!(target: "raft_candidate", "receiving another message event");
                 Ok(self.into()) 
             }
         }
@@ -135,6 +135,7 @@ impl Role<Candidate> {
                 1,
             );
 
+            // todo: fix this poor error handling
             if let Err(error) = self.node_tx.send(Message::new(
                 self.log.last_term,
                 Address::Peer(self.id.clone()),

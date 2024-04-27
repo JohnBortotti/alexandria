@@ -21,6 +21,7 @@ impl Follower {
     }
 }
 
+// todo: implement the AckEntries event
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         info!(target: "raft_follower", "the follower is receiving a message from {:?}", &msg.from);

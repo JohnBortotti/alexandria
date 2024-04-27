@@ -10,6 +10,8 @@ pub struct Leader {
     idle_timeout: u64,
 }
 
+// todo: leader must keep track of peers and wich is the last commit index from each peer, 
+// this way it can resend lost entries and keep log consistency
 impl Leader {
     pub fn new(peers: Vec<String>, idle_timeout: u64) -> Self {
         info!(target: "raft_leader", "a wild new leader appers");
@@ -39,16 +41,6 @@ impl Role<Leader> {
         }
     }
 
-    // once a leader has been elected, it begins servicing
-    // client requests. Each client request contains a command to
-    // be executed by the replicated state machines.
-    //
-    // the leader appends the command to its log as a new entry, 
-    // then issues AppendEntries RPCs in parallel to each of the other
-    // servers to replicate the entry. When the entry has been
-    // safely replicated, the leader applies
-    // the entry to its state machine and returns the result of that
-    // execution to the client.
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
             Event::AppendEntries { .. } => {
@@ -72,6 +64,8 @@ impl Role<Leader> {
 
                 self.log.append(self.log.last_term, vec!(command.clone()));
                 
+                // todo: refactor to remove the unwrap()
+                // todo: create a function broadcastAppendEntries to repeat this procedure
                 self.node_tx.send(Message::new(
                     self.log.last_term,
                     Peer(self.id.clone()),

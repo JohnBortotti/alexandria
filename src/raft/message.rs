@@ -25,6 +25,7 @@ pub enum Address {
     Peer(String),
 }
 
+// todo: remove the term field (since every message already contains the current term)
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
     AppendEntries { term: u64, index: u64, entries: Vec<String> },

@@ -39,12 +39,6 @@ impl Log {
             self.entries.push(entry);
         });
     }
-
-    // TODO
-    //
-    // an entry is considered committed if it is safe for that
-    // entry to be applied to state machines
-    // pub fn commit(mut self, entry: Entry) {
-    //
-    // }
 }
+
+// todo: write tests

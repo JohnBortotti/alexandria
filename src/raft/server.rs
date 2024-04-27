@@ -20,7 +20,6 @@ pub struct Server {
     node_rx: UnboundedReceiver<message::Message>,
 }
 
-// raft server layer to handle peer networking (incoming and sending tcp messages)
 impl Server {
     pub async fn new(id: &str, peers: Vec<String>, log: Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
@@ -32,8 +31,6 @@ impl Server {
         }
     }
 
-    // TODO: use hashtables to only send messages to valid peers, 
-    // blocking "external message injection"
     pub async fn serve(self, tcp_listener: TcpListener) -> Result<(), &'static str> {
         let (tcp_inbound_tx, tcp_inbound_rx) = unbounded_channel::<message::Message>();
         tokio::spawn(Self::receiving_tcp(tcp_listener, tcp_inbound_tx));
@@ -41,9 +38,6 @@ impl Server {
         Self::event_loop(self.node, tcp_inbound_rx, CONFIG.raft.tick_millis_duration).await
     }
 
-    // event loop handles 2 tasks: 
-    // - node ticks
-    // - node receiving messages
     async fn event_loop(
         mut node: node::Node,
         tcp_inbound_rx: UnboundedReceiver<message::Message>,
@@ -60,7 +54,6 @@ impl Server {
         }
     }
 
-    // receiving messages
     async fn receiving_tcp(
         listener: TcpListener,
         tcp_inbound_tr: UnboundedSender<message::Message>,
@@ -85,7 +78,8 @@ impl Server {
                         panic!("message incorrect");
                     };
 
-                    // example payload: "(term:1,from:Broadcast,to:Broadcast,event:AppendEntries(index:1,term:1))"
+                    // example payload: 
+                    // "(term:1,from:Broadcast,to:Broadcast,event:AppendEntries(index:1,term:1))"
                     let parsed_msg: message::Message = ron::from_str(req_body[1]).unwrap();
                     tcp_tr.send(parsed_msg).unwrap();
 
@@ -102,7 +96,6 @@ impl Server {
         Ok(())
     }
 
-    // sending messages to peers
     async fn sending_tcp(
         node_rx: UnboundedReceiver<message::Message>,
         peers: Vec<String>,

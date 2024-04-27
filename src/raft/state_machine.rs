@@ -4,6 +4,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
 use log::info;
 
+// todo: update the command data structure
 #[derive(Debug)]
 pub struct Instruction {
     pub index: u64,
@@ -36,12 +37,11 @@ impl StateMachine {
             println!("\nInstruction received by state_driver:");
             println!("{:?}", msg);
 
-            // execute command 
+            // todo: execute command 
             
-            // commit index 
             self.applied_index = msg.index;
 
-            // return response
+            // todo: return response
         }
     }
 }
