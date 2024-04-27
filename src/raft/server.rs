@@ -36,11 +36,14 @@ impl Server {
     // blocking "external message injection"
     pub async fn serve(self, tcp_listener: TcpListener) -> Result<(), &'static str> {
         let (tcp_inbound_tx, tcp_inbound_rx) = unbounded_channel::<message::Message>();
-        tokio::spawn(Self::inbound_receiving_tcp(tcp_listener, tcp_inbound_tx));
-        tokio::spawn(Self::inbound_sending_tcp(self.node_rx, self.peers));
+        tokio::spawn(Self::receiving_tcp(tcp_listener, tcp_inbound_tx));
+        tokio::spawn(Self::sending_tcp(self.node_rx, self.peers));
         Self::event_loop(self.node, tcp_inbound_rx, CONFIG.raft.tick_millis_duration).await
     }
 
+    // event loop handles 2 tasks: 
+    // - node ticks
+    // - node receiving messages
     async fn event_loop(
         mut node: node::Node,
         tcp_inbound_rx: UnboundedReceiver<message::Message>,
@@ -58,7 +61,7 @@ impl Server {
     }
 
     // receiving messages
-    async fn inbound_receiving_tcp(
+    async fn receiving_tcp(
         listener: TcpListener,
         tcp_inbound_tr: UnboundedSender<message::Message>,
     ) -> Result<(), std::io::Error> {
@@ -100,7 +103,7 @@ impl Server {
     }
 
     // sending messages to peers
-    async fn inbound_sending_tcp(
+    async fn sending_tcp(
         node_rx: UnboundedReceiver<message::Message>,
         peers: Vec<String>,
     ) -> Result<(), std::io::Error> {

@@ -30,10 +30,10 @@ impl Role<Follower> {
         }
 
         match msg.event {
-            Event::AppendEntries { term, command: _, index: _ } => {
+            Event::AppendEntries { term, entries: _, index: _ } => {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
-                    self.log.append(term, String::from(""));
+                    self.log.append(term, vec!(String::from("")));
                 }
             }
             Event::RequestVote { term } => {
@@ -194,7 +194,7 @@ mod tests {
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::AppendEntries { term: 1, index: 1, command: String::from("") },
+                    event: Event::AppendEntries { term: 1, index: 1, entries: vec!(String::from("") )},
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),

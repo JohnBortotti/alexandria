@@ -63,14 +63,15 @@ impl Role<Leader> {
             Event::Heartbeat { term: _ } => {
                 info!(target: "raft_leader", "leader receiving an Heartbeat");
             }
+            Event::AckEntries { .. } => {
+                info!(target: "raft_leader", "leader receiving an AckEntries");
+            }
             Event::ClientRequest { command } => {
                 info!(target: "raft_leader", "leader receiving an ClientRequest");
                 info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
 
-                // append log entry
-                self.log.append(self.log.last_term, command.clone());
+                self.log.append(self.log.last_term, vec!(command.clone()));
                 
-                // breadcast log
                 self.node_tx.send(Message::new(
                     self.log.last_term,
                     Peer(self.id.clone()),
@@ -78,14 +79,10 @@ impl Role<Leader> {
                     Event::AppendEntries { 
                         term: self.log.last_term, 
                         index: self.log.last_index, 
-                        command: command.clone()
+                        entries: vec!(command.clone())
                     }
-                ))
-                .unwrap();
+                )).unwrap();
 
-                // ensure the log was replicated (receives by majority of nodes),
-                
-                // then apply to the state_machine and commit log
                 self.state_tx.send(Instruction {
                     index: self.log.last_index+1,
                     term: self.log.last_index,
@@ -193,9 +190,6 @@ mod test {
                 assert_eq!(nleader.log.last_index, 1);
             }
             _ => panic!("Expected node to be Leader")
-            
         }
-
-
     }
 }
