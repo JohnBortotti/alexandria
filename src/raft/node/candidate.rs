@@ -1,5 +1,5 @@
 use super::super::{message::Address, message::Event, message::Message};
-use super::{follower::Follower, leader::Leader, Node, Role};
+use super::{follower::Follower, leader::Leader, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 use rand::Rng;
 use log::info;
@@ -29,7 +29,7 @@ impl Candidate {
 impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
-            Event::AppendEntries { entries: _, index: _ } => {
+            Event::AppendEntries { entries: _, } => {
                 info!(target: "raft_candidate", 
                       "candidate is receiving an appendEntries, checking message term...");
                 if msg.term >= self.log.last_term {
@@ -217,7 +217,9 @@ mod tests {
         let (candidate, _, _) = setup();
 
         let msg = Message {
-            event: Event::AppendEntries { index: 1, entries: vec!(String::from("")) },
+            event: Event::AppendEntries { 
+                entries: vec!(Entry { index: 1, term: 2, command: "".to_string()}) 
+            },
             term: 2,
             to: Address::Broadcast,
             from: Address::Peer("c".into()),

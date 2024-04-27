@@ -1,11 +1,11 @@
-use super::{Node, Role};
+use super::{Node, Role, log::Entry};
 use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}, 
 state_machine::Instruction};
 use std::collections::HashMap;
 use log::info;
 
 pub struct Leader {
-    peer_last_index: HashMap<String, u64>,
+    peer_last_index: HashMap<String, usize>,
     idle_ticks: u64,
     idle_timeout: u64,
 }
@@ -54,6 +54,28 @@ impl Role<Leader> {
         self.into()
     }
 
+    fn broadcast_append_entries(self) -> Node {
+        info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");
+
+        for (peer, peer_last_index) in &self.role.peer_last_index {
+            if peer_last_index.clone() == self.log.last_index {
+                continue;
+            };
+
+            let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
+            self.node_tx.send(
+                Message::new(
+                    self.log.last_term,
+                    Peer(self.id.clone()),
+                    Peer(String::from(peer)),
+                    Event::AppendEntries { entries: logs }
+                )
+            ).unwrap();
+        };
+
+        self.into()
+    }
+
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
             Event::AppendEntries { .. } => {
@@ -90,14 +112,18 @@ impl Role<Leader> {
                     Peer(self.id.clone()),
                     Broadcast,
                     Event::AppendEntries { 
-                        index: self.log.last_index, 
-                        entries: vec!(command.clone())
+                        entries: vec!(Entry {
+                            index: self.log.last_index, 
+                            term: self.log.last_term,
+                            command: command.clone()
+                        })
                     }
                 )).unwrap();
 
+                // todo: should'n every node implement this funcion?
                 self.state_tx.send(Instruction {
                     index: self.log.last_index+1,
-                    term: self.log.last_index,
+                    term: self.log.last_term,
                     command
                 }).unwrap();
             }
@@ -159,7 +185,7 @@ mod test {
 
                match event {
                    Event::Heartbeat {} => { assert_eq!(term, 0) }
-                   _ => panic!("Expected event to be an AppendEntries")
+                   _ => panic!("Expected event to be a Heartbeat")
                };
            }
 
@@ -210,5 +236,83 @@ mod test {
             _ => panic!("Expected node to be Leader")
         }
 
+    }
+
+    #[tokio::test]
+    async fn test_leader_broadcast_append_entries_1() {
+        let (mut leader, mut node_rx, _) = setup();
+
+        leader.role.peer_last_index.clear();
+        leader.role.peer_last_index.insert("a".to_string(), 1);
+
+        leader.log.append(
+            3, vec!(String::from("test1"), String::from("test2"), String::from("test3"))
+        );
+        leader.broadcast_append_entries();
+        let msg = node_rx.recv().await.unwrap();
+
+        match msg {
+            Message { term, from, to, event } => {
+               assert_eq!(term, 3);
+               match from {
+                   Peer(peer_id) => { assert_eq!(peer_id, "l") }
+                   _ => panic!("Unexpected address")
+               };
+               match to {
+                   Peer(peer_id) => { assert_eq!(peer_id, "a") }
+                   _ => panic!("Unexpected address")
+               }
+               match event {
+                   Event::AppendEntries { entries } => {
+                       assert_eq!(entries.len(), 2);
+                       assert_eq!(entries[0].command, "test2");
+                       assert_eq!(entries[1].command, "test3");
+                       assert_eq!(entries[0].index, 2);
+                       assert_eq!(entries[1].index, 3);
+                   }
+                   _ => panic!("Expected event to be an AppendEntries")
+               }
+            }
+        };
+    }
+
+    #[tokio::test]
+    async fn test_leader_broadcast_append_entries_2() {
+        let (mut leader, mut node_rx, _) = setup();
+
+        leader.role.peer_last_index.clear();
+        leader.role.peer_last_index.insert("b".to_string(), 0);
+
+        leader.log.append(
+            3, vec!(String::from("test1"), String::from("test2"), String::from("test3"))
+        );
+        leader.broadcast_append_entries();
+        let msg = node_rx.recv().await.unwrap();
+
+        match msg {
+            Message { term, from, to, event } => {
+               assert_eq!(term, 3);
+               match from {
+                   Peer(peer_id) => { assert_eq!(peer_id, "l") }
+                   _ => panic!("Unexpected address")
+               };
+               match to {
+                   Peer(peer_id) => { assert_eq!(peer_id, "b") }
+                   _ => panic!("Unexpected address")
+               }
+               match event {
+                   Event::AppendEntries { entries } => {
+                       assert_eq!(entries.len(), 3);
+                       assert_eq!(entries[0].command, "test1");
+                       assert_eq!(entries[1].command, "test2");
+                       assert_eq!(entries[2].command, "test3");
+                       assert_eq!(entries[0].index, 1);
+                       assert_eq!(entries[1].index, 2);
+                       assert_eq!(entries[2].index, 3);
+                   }
+                   _ => panic!("Expected event to be an AppendEntries")
+               }
+            }
+        };
     }
 }

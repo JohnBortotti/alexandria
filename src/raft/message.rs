@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use super::node::log::Entry;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
@@ -28,8 +29,8 @@ pub enum Address {
 // todo: remove the term field (since every message already contains the current term)
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Event {
-    AppendEntries { index: u64, entries: Vec<String> },
-    AckEntries { index: u64 },
+    AppendEntries { entries: Vec<Entry> },
+    AckEntries { index: usize },
     Heartbeat {},
     RequestVote {},
     Vote { voted_for: String },

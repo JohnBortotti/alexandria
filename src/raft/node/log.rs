@@ -1,16 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Entry {
-    index: u64,
-    term: u64,
-    command: String,
+    pub index: usize,
+    pub term: u64,
+    pub command: String,
 }
 
 pub struct Log {
-    pub last_index: u64,
+    pub last_index: usize,
     pub last_term: u64,
-    pub commit_index: u64,
+    pub commit_index: usize,
     pub commit_term: u64,
     pub entries: Vec<Entry>,
 }

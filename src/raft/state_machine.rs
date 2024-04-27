@@ -7,7 +7,7 @@ use log::info;
 // todo: update the command data structure
 #[derive(Debug)]
 pub struct Instruction {
-    pub index: u64,
+    pub index: usize,
     pub term: u64,
     pub command: String,
 }
@@ -15,7 +15,7 @@ pub struct Instruction {
 pub struct StateMachine {
     state_rx: UnboundedReceiverStream<Instruction>,
     node_tx: UnboundedSender<Message>,
-    applied_index: u64,
+    applied_index: usize,
 }
 
 impl StateMachine {

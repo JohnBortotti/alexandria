@@ -1,5 +1,5 @@
 use super::super::{message::Address, message::Event, message::Message};
-use super::{candidate::Candidate, Node, Role};
+use super::{candidate::Candidate, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 use log::info;
 
@@ -31,7 +31,7 @@ impl Role<Follower> {
         }
 
         match msg.event {
-            Event::AppendEntries { entries: _, index: _ } => {
+            Event::AppendEntries { entries: _ } => {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
                     self.log.append(msg.term, vec!(String::from("")));
@@ -192,7 +192,11 @@ mod tests {
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::AppendEntries { index: 1, entries: vec!(String::from("") )},
+                    event: Event::AppendEntries {
+                        entries: vec!(
+                            Entry { index: 1, term: 1, command: String::from("")}
+                        )
+                    },
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),
