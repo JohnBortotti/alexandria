@@ -10,8 +10,6 @@ pub struct Leader {
     idle_timeout: u64,
 }
 
-// todo: leader must keep track of peers and wich is the last commit index from each peer, 
-// this way it can resend lost entries and keep log consistency
 impl Leader {
     pub fn new(peers: Vec<String>, idle_timeout: u64) -> Self {
         info!(target: "raft_leader", "a wild new leader appers");
@@ -41,6 +39,23 @@ impl Role<Leader> {
         }
     }
 
+    fn broadcast_heartbeat(self) -> Node {
+        info!(target: "raft_leader", 
+              "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
+
+        self.node_tx.send(
+            Message::new(
+                self.log.last_term,
+                Peer(self.id.clone()),
+                Broadcast,
+                Event::Heartbeat {
+                    term: self.log.last_term
+                }
+        )).unwrap();
+
+        self.into()
+    }
+
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
             Event::AppendEntries { .. } => {
@@ -55,8 +70,14 @@ impl Role<Leader> {
             Event::Heartbeat { term: _ } => {
                 info!(target: "raft_leader", "leader receiving an Heartbeat");
             }
-            Event::AckEntries { .. } => {
+            Event::AckEntries { index } => {
                 info!(target: "raft_leader", "leader receiving an AckEntries");
+
+                let addr = match msg.from {
+                    Broadcast => panic!("Expected msg sender to be a peer instead broadcast"),
+                    Peer(peer) => peer
+                };
+                self.role.peer_last_index.entry(addr).and_modify(|e| *e = index);
             }
             Event::ClientRequest { command } => {
                 info!(target: "raft_leader", "leader receiving an ClientRequest");
@@ -86,23 +107,6 @@ impl Role<Leader> {
         }
 
         Ok(self.into())
-    }
-
-    fn broadcast_heartbeat(self) -> Node {
-        info!(target: "raft_leader", 
-              "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
-
-        self.node_tx.send(
-            Message::new(
-                self.log.last_term,
-                Peer(self.id.clone()),
-                Broadcast,
-                Event::Heartbeat {
-                    term: self.log.last_term
-                }
-        )).unwrap();
-
-        self.into()
     }
 }
 
@@ -185,5 +189,29 @@ mod test {
             }
             _ => panic!("Expected node to be Leader")
         }
+    }
+
+    #[tokio::test]
+    async fn leader_update_index_table_on_ack_entries() {
+        let (leader, _, _) = setup();
+
+        let msg = Message {
+            event: Event::AckEntries { index: 2 },
+            term: 0,
+            to: Peer("l".to_string()),
+            from: Peer("b".into())
+        };
+
+        let node = leader.step(msg);
+
+        match node {
+            Ok(Node::Leader(nleader)) => {
+                assert_eq!(nleader.role.peer_last_index.get("a"), Some(0).as_ref());
+                assert_eq!(nleader.role.peer_last_index.get("b"), Some(2).as_ref());
+                assert_eq!(nleader.role.peer_last_index.get("c"), Some(0).as_ref());
+            },
+            _ => panic!("Expected node to be Leader")
+        }
+
     }
 }
