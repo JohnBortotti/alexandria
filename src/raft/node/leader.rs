@@ -1,6 +1,5 @@
 use super::{Node, Role, log::Entry};
-use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}, 
-state_machine::Instruction};
+use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}};
 use std::collections::HashMap;
 use log::info;
 
@@ -33,44 +32,35 @@ impl Role<Leader> {
 
         if self.role.idle_ticks >= self.role.idle_timeout {
             self.role.idle_ticks = 0;
-            self.broadcast_heartbeat()
+            self.broadcast_append_entries()
         } else {
             self.into()
         }
     }
 
-    fn broadcast_heartbeat(self) -> Node {
-        info!(target: "raft_leader", 
-              "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
-
-        self.node_tx.send(
-            Message::new(
-                self.log.last_term,
-                Peer(self.id.clone()),
-                Broadcast,
-                Event::Heartbeat {}
-        )).unwrap();
-
-        self.into()
-    }
-
     fn broadcast_append_entries(self) -> Node {
-        info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");
-
         for (peer, peer_last_index) in &self.role.peer_last_index {
             if peer_last_index.clone() == self.log.last_index {
-                continue;
-            };
-
-            let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
-            self.node_tx.send(
-                Message::new(
-                    self.log.last_term,
-                    Peer(self.id.clone()),
-                    Peer(String::from(peer)),
-                    Event::AppendEntries { entries: logs }
-                )
-            ).unwrap();
+                info!(target: "raft_leader", "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
+                self.node_tx.send(
+                    Message::new(
+                        self.log.last_term,
+                        Peer(self.id.clone()),
+                        Peer(String::from(peer)),
+                        Event::Heartbeat{}
+                )).unwrap();
+            } else {
+                info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");
+                let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
+                info!(target: "raft_leader", "appendEntries logs: {:?}", logs);
+                self.node_tx.send(
+                    Message::new(
+                        self.log.last_term,
+                        Peer(self.id.clone()),
+                        Peer(String::from(peer)),
+                        Event::AppendEntries { entries: logs }
+                )).unwrap();
+            }
         };
 
         self.into()
@@ -90,6 +80,7 @@ impl Role<Leader> {
             Event::Heartbeat {} => {
                 info!(target: "raft_leader", "leader receiving an Heartbeat");
             }
+            // todo: after appending the index table, check if the log is safe to be commited
             Event::AckEntries { index } => {
                 info!(target: "raft_leader", "leader receiving an AckEntries");
 
@@ -105,27 +96,17 @@ impl Role<Leader> {
 
                 self.log.append(self.log.last_term, vec!(command.clone()));
                 
-                // todo: refactor to remove the unwrap()
-                // todo: create a function broadcastAppendEntries to repeat this procedure
-                self.node_tx.send(Message::new(
-                    self.log.last_term,
-                    Peer(self.id.clone()),
-                    Broadcast,
-                    Event::AppendEntries { 
-                        entries: vec!(Entry {
-                            index: self.log.last_index, 
-                            term: self.log.last_term,
-                            command: command.clone()
-                        })
-                    }
-                )).unwrap();
+                // todo: write test for this function call inside ClientRequest
+                let new_node = self.broadcast_append_entries();
 
                 // todo: should'n every node implement this funcion?
-                self.state_tx.send(Instruction {
-                    index: self.log.last_index+1,
-                    term: self.log.last_term,
-                    command
-                }).unwrap();
+                // todo: only send to state_machine when log is safe to be applied
+                // self.state_tx.send(Instruction {
+                //     index: self.log.last_index+1,
+                //     term: self.log.last_term,
+                //     command
+                // }).unwrap();
+                return Ok(new_node.into())
             }
         }
 
@@ -177,12 +158,10 @@ mod test {
                    Peer(peer_id) => { assert_eq!(peer_id, "l") }
                    _ => panic!("Unexpected address")
                };
-
                match to {
-                   Broadcast => {},
+                   Peer(_) => {},
                    _ => panic!("Expected message to be broadcast")
                };
-
                match event {
                    Event::Heartbeat {} => { assert_eq!(term, 0) }
                    _ => panic!("Expected event to be a Heartbeat")
