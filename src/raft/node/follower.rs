@@ -21,7 +21,6 @@ impl Follower {
     }
 }
 
-// todo: implement the AckEntries event
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         info!(target: "raft_follower", "the follower is receiving a message from {:?}", &msg.from);
@@ -29,12 +28,27 @@ impl Role<Follower> {
             info!(target: "raft_follower", "message from leader, reseting seen ticks");
             self.role.leader_seen_ticks = 0;
         }
-
+        
+        // todo: write integration test to test appendEntries > log.append > ackEntries
         match msg.event {
-            Event::AppendEntries { entries: _ } => {
+            Event::AppendEntries { entries } => {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
-                    self.log.append(msg.term, vec!(String::from("")));
+                    self.log.append(entries);
+
+                    let leader = match msg.from {
+                        Address::Peer(id) => id,
+                        _ => panic!("Unexpected msg.from value")
+                    };
+                    let ack = Message::new(
+                        msg.term,
+                        Address::Peer(self.id.clone()),
+                        Address::Peer(leader),
+                        Event::AckEntries { index: self.log.last_index }
+                    );
+
+                    info!(target: "raft_follower", "sending ackEntries to leader, last_index: {}", self.log.last_index);
+                    self.node_tx.send(ack).unwrap();
                 }
             }
             Event::RequestVote {} => {
@@ -42,7 +56,9 @@ impl Role<Follower> {
                 if msg.term > self.log.last_term {
                     match msg.from {
                         Address::Peer(sender) => {
-                            info!(target: "raft_follower", "the follower is voting for peer {:?}", sender);
+                            info!(target: "raft_follower",
+                                "the follower is voting for peer {:?}", sender);
+
                             let res = Message::new(
                                 msg.term,
                                 Address::Peer(self.id.clone()),
@@ -192,11 +208,7 @@ mod tests {
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::AppendEntries {
-                        entries: vec!(
-                            Entry { index: 1, term: 1, command: String::from("")}
-                        )
-                    },
+                    event: Event::Heartbeat {},
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),

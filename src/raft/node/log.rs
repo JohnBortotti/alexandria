@@ -26,17 +26,11 @@ impl Log {
         }
     }
 
-    pub fn append(&mut self, term: u64, entries: Vec<String>) {
-        let _ = entries.iter().for_each(|command| {
-            let entry = Entry {
-                index: self.last_index + 1,
-                term,
-                command: command.to_string(),
-            };
-
-            self.last_index += 1;
-            self.last_term = term;
-            self.entries.push(entry);
+    pub fn append(&mut self, entries: Vec<Entry>) {
+        entries.iter().for_each(|entry| {
+            self.last_index = entry.index;
+            self.last_term = entry.term;
+            self.entries.push(entry.clone());
         });
     }
 }

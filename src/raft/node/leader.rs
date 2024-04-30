@@ -82,7 +82,7 @@ impl Role<Leader> {
             }
             // todo: after appending the index table, check if the log is safe to be commited
             Event::AckEntries { index } => {
-                info!(target: "raft_leader", "leader receiving an AckEntries");
+                info!(target: "raft_leader", "leader receiving an AckEntries from {:?} with index: {}", msg.from, index);
 
                 let addr = match msg.from {
                     Broadcast => panic!("Expected msg sender to be a peer instead broadcast"),
@@ -94,7 +94,8 @@ impl Role<Leader> {
                 info!(target: "raft_leader", "leader receiving an ClientRequest");
                 info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
 
-                self.log.append(self.log.last_term, vec!(command.clone()));
+                let entry = Entry{ index: self.log.last_index+1, term: self.log.last_term, command };
+                self.log.append(vec!(entry));
                 
                 // todo: write test for this function call inside ClientRequest
                 let new_node = self.broadcast_append_entries();
@@ -223,13 +224,14 @@ mod test {
 
         leader.role.peer_last_index.clear();
         leader.role.peer_last_index.insert("a".to_string(), 1);
-
-        leader.log.append(
-            3, vec!(String::from("test1"), String::from("test2"), String::from("test3"))
-        );
+        leader.log.append(vec!(
+                Entry{index:1, term: 3, command: String::from("test1")},
+                Entry{index:2, term: 3, command: String::from("test2")},
+                Entry{index:3, term: 3, command: String::from("test3")},
+        ));
         leader.broadcast_append_entries();
-        let msg = node_rx.recv().await.unwrap();
 
+        let msg = node_rx.recv().await.unwrap();
         match msg {
             Message { term, from, to, event } => {
                assert_eq!(term, 3);
@@ -261,13 +263,14 @@ mod test {
 
         leader.role.peer_last_index.clear();
         leader.role.peer_last_index.insert("b".to_string(), 0);
-
-        leader.log.append(
-            3, vec!(String::from("test1"), String::from("test2"), String::from("test3"))
-        );
+        leader.log.append(vec!(
+                Entry{index:1, term: 3, command: String::from("test1")},
+                Entry{index:2, term: 3, command: String::from("test2")},
+                Entry{index:3, term: 3, command: String::from("test3")},
+        ));
         leader.broadcast_append_entries();
-        let msg = node_rx.recv().await.unwrap();
 
+        let msg = node_rx.recv().await.unwrap();
         match msg {
             Message { term, from, to, event } => {
                assert_eq!(term, 3);
