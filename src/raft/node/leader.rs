@@ -41,7 +41,8 @@ impl Role<Leader> {
     fn broadcast_append_entries(self) -> Node {
         for (peer, peer_last_index) in &self.role.peer_last_index {
             if peer_last_index.clone() == self.log.last_index {
-                info!(target: "raft_leader", "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
+                info!(target: "raft_leader", 
+                    "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
                 self.node_tx.send(
                     Message::new(
                         self.log.last_term,
@@ -80,18 +81,32 @@ impl Role<Leader> {
             Event::Heartbeat {} => {
                 info!(target: "raft_leader", "leader receiving an Heartbeat");
             }
-            // todo: after appending the index table, check if the log is safe to be commited
             Event::AckEntries { index } => {
-                info!(target: "raft_leader", "leader receiving an AckEntries from {:?} with index: {}", msg.from, index);
+                info!(target: "raft_leader", 
+                    "leader receiving an AckEntries from {:?} with index: {}", msg.from, index);
 
                 let addr = match msg.from {
                     Broadcast => panic!("Expected msg sender to be a peer instead broadcast"),
                     Peer(peer) => peer
                 };
                 self.role.peer_last_index.entry(addr).and_modify(|e| *e = index);
+
+                let replicated = self.role.peer_last_index
+                    .iter()
+                    .filter(|entry| entry.1 == &self.log.last_index).count();
+                info!(target: "raft_leader", "leader replicated index {} in {} peers", index, replicated);
+                // todo: implement messaging to followers commit their local logs (Message::CommitEntries)
+                if replicated >= (self.peers.len()/2) &&
+                    (self.log.last_index > self.log.commit_index) {
+                    info!(target: "raft_leader", "leader commiting safe replicated entries");
+                    info!(target: "raft_leader", 
+                        "leader commit_index now is: {}", self.log.last_index);
+                    self.log.commit(self.log.last_index);
+                }
+
             }
             Event::ClientRequest { command } => {
-                info!(target: "raft_leader", "leader receiving an ClientRequest");
+                info!(target: "raft_leader", "leader receiving a ClientRequest");
                 info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
 
                 let entry = Entry{ index: self.log.last_index+1, term: self.log.last_term, command };
@@ -99,14 +114,6 @@ impl Role<Leader> {
                 
                 // todo: write test for this function call inside ClientRequest
                 let new_node = self.broadcast_append_entries();
-
-                // todo: should'n every node implement this funcion?
-                // todo: only send to state_machine when log is safe to be applied
-                // self.state_tx.send(Instruction {
-                //     index: self.log.last_index+1,
-                //     term: self.log.last_term,
-                //     command
-                // }).unwrap();
                 return Ok(new_node.into())
             }
         }

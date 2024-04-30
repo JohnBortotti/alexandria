@@ -36,10 +36,9 @@ async fn main() {
 
     // curl -X POST -d '(term:1, from: Peer("test"), to: Peer("test"), event: ClientRequest(command: "test"))' url
     // 
-    // TODO: create the client layer, responsible to create properly formatted messages to peers, and
+    // todo: create the client layer, responsible to create properly formatted messages to peers, and
     // redirect messages that were sent to peers that are not leaders. 
     //
     // user request/message -> raft/client -> raft/server -> peer/node
     //
-    // TODO: create the log structure to handle log appending and properly replication
 }
