@@ -1,4 +1,4 @@
-use super::super::{message::Address, message::Event, message::Message};
+use super::super::{message::Address, message::Event, message::Message, node::log::Entry};
 use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
 use log::info;
@@ -29,7 +29,6 @@ impl Role<Follower> {
             self.role.leader_seen_ticks = 0;
         }
         
-        // todo: write integration test to test appendEntries > log.append > ackEntries
         match msg.event {
             Event::AppendEntries { entries } => {
                 if self.is_leader(&msg.from) {
@@ -227,5 +226,44 @@ mod tests {
         }
     }
 
-    // todo: test follower appending log when receiving appendEntries
+    #[tokio::test]
+    async fn follower_must_append_log_on_append_entries() {
+        let (mut follower, _node_rx, _) = setup();
+        follower.role.leader = Some(String::from("a"));
+
+        let entries = vec!(
+            Entry { 
+                command: "command1".to_string(),
+                index: 1,
+                term: 1
+            },
+            Entry {
+                command: "command2".to_string(),
+                index: 2,
+                term: 1
+            }
+        );
+        let append_entries = Message {
+            term: 1,
+            from: Address::Peer("a".to_string()),
+            to: Address::Broadcast,
+            event: Event::AppendEntries { entries }
+        };
+
+        let follower = follower.step(append_entries).unwrap();
+        match follower {
+            Node::Follower(follower) => {
+                assert_eq!(follower.log.last_term, 1);
+                assert_eq!(follower.log.last_index, 2);
+                assert_eq!(follower.log.entries[0].index, 1);
+                assert_eq!(follower.log.entries[0].command, "command1");
+                assert_eq!(follower.log.entries[1].index, 2);
+                assert_eq!(follower.log.entries[1].command, "command2");
+            },
+            _ => panic!("Expected node to be Follower")
+        };
+        
+
+    }
+
 }
