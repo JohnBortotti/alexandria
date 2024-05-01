@@ -101,8 +101,7 @@ impl Role<Candidate> {
                     info!(target: "raft_candidate", "candidate received a vote");
                     self.role.votes += 1;
 
-                    // todo: check this rule (i guess it can become leader with majority of votes
-                    // instead of all votes)
+                    // todo: check this rule (i guess it can become leader with majority of votes instead of all votes)
                     if self.role.votes >= self.peers.len() as u64 {
                         let peers = self.peers.clone();
                         Ok(self

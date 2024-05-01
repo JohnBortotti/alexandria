@@ -20,6 +20,7 @@ impl Message {
     }
 }
 
+// todo: add Client address option
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Address {
     Broadcast,

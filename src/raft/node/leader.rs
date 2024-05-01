@@ -96,6 +96,8 @@ impl Role<Leader> {
                     .filter(|entry| entry.1 == &self.log.last_index).count();
                 info!(target: "raft_leader", "leader replicated index {} in {} peers", index, replicated);
                 // todo: implement messaging to followers commit their local logs (Message::CommitEntries)
+                // this can be implemented using heartbeats or appendEntries containing a
+                // last_index field, then every follower must commit entries up to that index
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
                     info!(target: "raft_leader", "leader commiting safe replicated entries");
@@ -112,7 +114,6 @@ impl Role<Leader> {
                 let entry = Entry{ index: self.log.last_index+1, term: self.log.last_term, command };
                 self.log.append(vec!(entry));
                 
-                // todo: write test for this function call inside ClientRequest
                 let new_node = self.broadcast_append_entries();
                 return Ok(new_node.into())
             }

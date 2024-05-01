@@ -226,4 +226,6 @@ mod tests {
             _ => panic!("Expected node to be follower"),
         }
     }
+
+    // todo: test follower appending log when receiving appendEntries
 }

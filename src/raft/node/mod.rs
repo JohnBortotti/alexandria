@@ -4,9 +4,9 @@ use crate::utils::config::CONFIG;
 use tokio::sync::mpsc;
 use self::log::Log;
 
-mod candidate;
-mod follower;
-mod leader;
+pub mod candidate;
+pub mod follower;
+pub mod leader;
 pub mod log;
 
 pub enum Node {
@@ -60,13 +60,14 @@ impl Node {
     }
 }
 
+// todo: remove pub fields and export a constructor (new::)
 pub struct Role<T> {
-    id: String,
-    peers: Vec<String>,
-    log: Log,
-    role: T,
-    node_tx: mpsc::UnboundedSender<Message>,
-    state_tx: mpsc::UnboundedSender<Instruction>,
+    pub id: String,
+    pub peers: Vec<String>,
+    pub log: Log,
+    pub role: T,
+    pub node_tx: mpsc::UnboundedSender<Message>,
+    pub state_tx: mpsc::UnboundedSender<Instruction>,
 }
 
 impl<R> Role<R> {
