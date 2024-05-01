@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use super::node::log::Entry;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub term: u64,
     pub from: Address,
@@ -20,13 +20,13 @@ impl Message {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Address {
     Broadcast,
     Peer(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Event {
     AppendEntries { entries: Vec<Entry> },
     AckEntries { index: usize },

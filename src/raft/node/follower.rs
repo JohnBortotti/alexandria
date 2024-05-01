@@ -1,5 +1,5 @@
 use super::super::{message::Address, message::Event, message::Message};
-use super::{candidate::Candidate, Node, Role, log::Entry};
+use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
 use log::info;
 

@@ -1,4 +1,4 @@
-mod message;
+pub mod message;
 mod state_machine;
 
 pub mod node;
