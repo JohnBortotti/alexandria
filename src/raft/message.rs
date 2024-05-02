@@ -29,8 +29,7 @@ pub enum Address {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Event {
-    // todo: implement with Option<Vec<Entry>>
-    AppendEntries { entries: Vec<Entry> },
+    AppendEntries { entries: Option<Vec<Entry>>, commit_index: usize },
     AckEntries { index: usize },
     RequestVote {},
     Vote { voted_for: String },

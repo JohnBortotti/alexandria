@@ -30,10 +30,21 @@ impl Role<Follower> {
         }
         
         match msg.event {
-            Event::AppendEntries { entries } => {
+            Event::AppendEntries { entries, commit_index } => {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
-                    self.log.append(entries);
+
+                    match entries {
+                        Some(entries) => self.log.append(entries),
+                        None => info!(target: "raft_follower", 
+                                      "receiving empty appendEntries from leader")
+                    };
+
+                    // todo: implement index committing (commit entries up to the commit_index
+                    // and keep log updated)
+                    // todo: check rules for safe committing
+                    info!(target: "raft_follower", 
+                          "receiving appendEntries with commit_index: {}", commit_index);
 
                     let leader = match msg.from {
                         Address::Peer(id) => id,
@@ -46,7 +57,8 @@ impl Role<Follower> {
                         Event::AckEntries { index: self.log.last_index }
                     );
 
-                    info!(target: "raft_follower", "sending ackEntries to leader, last_index: {}", self.log.last_index);
+                    info!(target: "raft_follower", 
+                          "sending ackEntries to leader, last_index: {}", self.log.last_index);
                     self.node_tx.send(ack).unwrap();
                 }
             }
@@ -207,7 +219,7 @@ mod tests {
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::AppendEntries { entries: vec!() },
+                    event: Event::AppendEntries { entries: Some(vec!()), commit_index: 0 },
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),
@@ -247,7 +259,7 @@ mod tests {
             term: 1,
             from: Address::Peer("a".to_string()),
             to: Address::Broadcast,
-            event: Event::AppendEntries { entries }
+            event: Event::AppendEntries { entries: Some(entries), commit_index: 0 }
         };
 
         let follower = follower.step(append_entries).unwrap();

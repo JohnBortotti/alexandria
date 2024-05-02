@@ -52,9 +52,14 @@ async fn raft_basic_log_replication() {
     // then leader should broadcast_append_entries to replicate log entry on peers
     let append_entries_msg = node_rx_1.recv().await.unwrap();
     match append_entries_msg.clone().event {
-        Event::AppendEntries {entries} => {
-            assert_eq!(entries[0].index, 1);
-            assert_eq!(entries[0].command, "command-test-1");
+        Event::AppendEntries { entries, commit_index: _ } => {
+            match entries {
+                Some(entries) => {
+                    assert_eq!(entries[0].index, 1);
+                    assert_eq!(entries[0].command, "command-test-1");
+                },
+                None => panic!("appendEntries should contain entries")
+            }
         },
         _ => panic!("Expected message event to be AppendEntries")
     };
@@ -79,6 +84,8 @@ async fn raft_basic_log_replication() {
         _ => panic!("Expected message event to be AckEntries")
     }
 
-    // after receiving the ackEntries from nodes, leader must commit the log entry
-    // todo: how to handle the commit step? should the leader send and appendCommitEntries?
+    // todo:
+    // after receiving the ackEntries from nodes, leader must commit the log entry, 
+    // and send commitEntries with the new commit_index,
+    // the nodes should commit the entries as well
 }

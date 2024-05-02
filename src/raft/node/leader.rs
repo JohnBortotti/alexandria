@@ -48,7 +48,7 @@ impl Role<Leader> {
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
-                        Event::AppendEntries{ entries: vec!() }
+                        Event::AppendEntries{ entries: Some(vec!()), commit_index: self.log.commit_index }
                 )).unwrap();
             } else {
                 info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");
@@ -59,7 +59,7 @@ impl Role<Leader> {
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
-                        Event::AppendEntries { entries: logs }
+                        Event::AppendEntries { entries: Some(logs), commit_index: self.log.commit_index }
                 )).unwrap();
             }
         };
@@ -92,9 +92,7 @@ impl Role<Leader> {
                     .iter()
                     .filter(|entry| entry.1 == &self.log.last_index).count();
                 info!(target: "raft_leader", "leader replicated index {} in {} peers", index, replicated);
-                // todo: implement messaging to followers commit their local logs (Message::CommitEntries)
-                // this can be implemented using heartbeats and appendEntries containing a
-                // last_index field, then every follower must commit entries up to that index
+
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
                     info!(target: "raft_leader", "leader commiting safe replicated entries");
@@ -249,12 +247,13 @@ mod test {
                    _ => panic!("Unexpected address")
                }
                match event {
-                   Event::AppendEntries { entries } => {
+                   Event::AppendEntries { entries: Some(entries), commit_index } => {
                        assert_eq!(entries.len(), 2);
                        assert_eq!(entries[0].command, "test2");
                        assert_eq!(entries[1].command, "test3");
                        assert_eq!(entries[0].index, 2);
                        assert_eq!(entries[1].index, 3);
+                       assert_eq!(commit_index, 0);
                    }
                    _ => panic!("Expected event to be an AppendEntries")
                }
@@ -288,7 +287,10 @@ mod test {
                    _ => panic!("Unexpected address")
                }
                match event {
-                   Event::AppendEntries { entries } => {
+                   Event::AppendEntries { 
+                       entries: Some(entries), 
+                       commit_index
+                   } => {
                        assert_eq!(entries.len(), 3);
                        assert_eq!(entries[0].command, "test1");
                        assert_eq!(entries[1].command, "test2");
@@ -296,10 +298,14 @@ mod test {
                        assert_eq!(entries[0].index, 1);
                        assert_eq!(entries[1].index, 2);
                        assert_eq!(entries[2].index, 3);
+                       assert_eq!(commit_index, 0);
                    }
                    _ => panic!("Expected event to be an AppendEntries")
                }
             }
         };
     }
+
+    // todo: write a test where the leader commits entries, and sends appendEntries with the updated
+    // commit_index
 }
