@@ -48,7 +48,7 @@ impl Role<Leader> {
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
-                        Event::AppendEntries{ entries: Some(vec!()), commit_index: self.log.commit_index }
+                        Event::AppendEntries{ entries: None, commit_index: self.log.commit_index }
                 )).unwrap();
             } else {
                 info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");

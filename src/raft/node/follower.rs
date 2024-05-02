@@ -23,7 +23,8 @@ impl Follower {
 
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
-        info!(target: "raft_follower", "the follower is receiving a message from {:?}", &msg.from);
+        info!(target: "raft_follower", 
+              "the follower is receiving a message from {:?}", &msg.from);
         if self.is_leader(&msg.from) {
             info!(target: "raft_follower", "message from leader, reseting seen ticks");
             self.role.leader_seen_ticks = 0;
@@ -34,32 +35,37 @@ impl Role<Follower> {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
 
-                    match entries {
-                        Some(entries) => self.log.append(entries),
-                        None => info!(target: "raft_follower", 
-                                      "receiving empty appendEntries from leader")
-                    };
-
-                    // todo: implement index committing (commit entries up to the commit_index
-                    // and keep log updated)
-                    // todo: check rules for safe committing
                     info!(target: "raft_follower", 
                           "receiving appendEntries with commit_index: {}", commit_index);
+                    // todo: implement the log replication here
+                    if commit_index > self.log.commit_index {
+                        info!(target: "raft_follower", 
+                              "commit_index is bigger than current");
+                    }
 
-                    let leader = match msg.from {
-                        Address::Peer(id) => id,
-                        _ => panic!("Unexpected msg.from value")
+                    match entries {
+                        None => info!(target: "raft_follower", 
+                                      "receiving empty appendEntries from leader"),
+                        Some(entries) => { 
+                            self.log.append(entries);
+                            let leader = match msg.from {
+                                Address::Peer(id) => id,
+                                _ => panic!("Unexpected msg.from value")
+                            };
+
+                            let ack = Message::new(
+                                msg.term,
+                                Address::Peer(self.id.clone()),
+                                Address::Peer(leader),
+                                Event::AckEntries { index: self.log.last_index }
+                                );
+
+                            info!(target: "raft_follower", 
+                                  "sending ackEntries to leader, last_index: {}",
+                                  self.log.last_index);
+                            self.node_tx.send(ack).unwrap();
+                        },
                     };
-                    let ack = Message::new(
-                        msg.term,
-                        Address::Peer(self.id.clone()),
-                        Address::Peer(leader),
-                        Event::AckEntries { index: self.log.last_index }
-                    );
-
-                    info!(target: "raft_follower", 
-                          "sending ackEntries to leader, last_index: {}", self.log.last_index);
-                    self.node_tx.send(ack).unwrap();
                 }
             }
             Event::RequestVote {} => {
