@@ -48,7 +48,7 @@ impl Role<Leader> {
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
-                        Event::Heartbeat{}
+                        Event::AppendEntries{ entries: vec!() }
                 )).unwrap();
             } else {
                 info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");
@@ -78,9 +78,6 @@ impl Role<Leader> {
             Event::RequestVote {} => {
                 info!(target: "raft_leader", "leader receiving an RequestVote");
             }
-            Event::Heartbeat {} => {
-                info!(target: "raft_leader", "leader receiving an Heartbeat");
-            }
             Event::AckEntries { index } => {
                 info!(target: "raft_leader", 
                     "leader receiving an AckEntries from {:?} with index: {}", msg.from, index);
@@ -96,7 +93,7 @@ impl Role<Leader> {
                     .filter(|entry| entry.1 == &self.log.last_index).count();
                 info!(target: "raft_leader", "leader replicated index {} in {} peers", index, replicated);
                 // todo: implement messaging to followers commit their local logs (Message::CommitEntries)
-                // this can be implemented using heartbeats or appendEntries containing a
+                // this can be implemented using heartbeats and appendEntries containing a
                 // last_index field, then every follower must commit entries up to that index
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
@@ -172,7 +169,7 @@ mod test {
                    _ => panic!("Expected message to be broadcast")
                };
                match event {
-                   Event::Heartbeat {} => { assert_eq!(term, 0) }
+                   Event::AppendEntries {..} => { assert_eq!(term, 0) }
                    _ => panic!("Expected event to be a Heartbeat")
                };
            }

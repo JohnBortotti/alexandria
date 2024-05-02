@@ -78,7 +78,7 @@ impl Role<Follower> {
                         _ => panic!("Unexpected sender address"),
                     };
                 }
-            }
+            },
             Event::Vote { voted_for } => {
                 info!(target: "raft_follower", 
                       "follower is receiving a vote messge, term: {}, voted_for: {}, from: {:?}", 
@@ -200,14 +200,14 @@ mod tests {
 
     #[test]
     fn follower_step_reset_seen_ticks() {
-        let (follower, _, _) = setup();
+        let (follower, _node_rx, _) = setup();
 
         let node = follower.tick();
 
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::Heartbeat {},
+                    event: Event::AppendEntries { entries: vec!() },
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),
