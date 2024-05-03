@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use log::info;
 
 pub struct Leader {
-    peer_last_index: HashMap<String, usize>,
+    pub peer_last_index: HashMap<String, usize>,
     idle_ticks: u64,
     idle_timeout: u64,
 }
@@ -51,7 +51,8 @@ impl Role<Leader> {
                         Event::AppendEntries{ entries: None, commit_index: self.log.commit_index }
                 )).unwrap();
             } else {
-                info!(target: "raft_leader", "leader is broadcasting appendEntries to update peers logs");
+                info!(target: "raft_leader", 
+                      "leader is broadcasting appendEntries to update peers logs");
                 let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
                 info!(target: "raft_leader", "appendEntries logs: {:?}", logs);
                 self.node_tx.send(
@@ -91,7 +92,8 @@ impl Role<Leader> {
                 let replicated = self.role.peer_last_index
                     .iter()
                     .filter(|entry| entry.1 == &self.log.last_index).count();
-                info!(target: "raft_leader", "leader replicated index {} in {} peers", index, replicated);
+                info!(target: "raft_leader", 
+                      "leader replicated index {} in {} peers", index, replicated);
 
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
