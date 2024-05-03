@@ -308,6 +308,18 @@ mod test {
         };
     }
 
-    // todo: write a test where the leader commits entries, and sends appendEntries with the updated
-    // commit_index
+    #[tokio::test]
+    async fn test_leader_append_entries_with_commit_index() {
+        let (mut leader, mut node_rx, _) = setup();
+        leader.log.commit_index = 2;
+        leader.tick().tick().tick().tick();
+
+        let append_entries_msg = node_rx.recv().await.unwrap();
+        match append_entries_msg.event {
+            Event::AppendEntries { entries: _, commit_index } => {
+                assert_eq!(commit_index, 2);
+            },
+            _ => panic!("Excpected event to be an AppendEntries")
+        }
+    }
 }
