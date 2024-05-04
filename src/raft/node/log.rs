@@ -42,4 +42,27 @@ impl Log {
     }
 }
 
-// todo: write tests
+mod test {
+    use super::*;
+
+    #[test]
+    fn new_log() {
+        let log = Log::new();
+        assert_eq!(log.last_index, 0);
+        assert_eq!(log.last_term, 0);
+        assert_eq!(log.entries.len(), 0);
+    }
+
+    #[test]
+    fn log_append() {
+        let mut log = Log::new();
+        log.append(vec!(Entry {
+            index: 1,
+            term: 0,
+            command: "a".to_string()
+        }));
+        assert_eq!(log.last_index, 1);
+        assert_eq!(log.entries.len(), 1);
+        assert_eq!(log.entries[0].command, "a");
+    }
+}
