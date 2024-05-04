@@ -224,7 +224,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_leader_broadcast_append_entries_1() {
+    async fn leader_broadcast_append_entries_1() {
         let (mut leader, mut node_rx, _) = setup();
 
         leader.role.peer_last_index.clear();
@@ -264,7 +264,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_leader_broadcast_append_entries_2() {
+    async fn leader_broadcast_append_entries_2() {
         let (mut leader, mut node_rx, _) = setup();
 
         leader.role.peer_last_index.clear();
@@ -309,7 +309,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_leader_append_entries_with_commit_index() {
+    async fn leader_append_entries_with_commit_index() {
         let (mut leader, mut node_rx, _) = setup();
         leader.log.commit_index = 2;
         leader.tick().tick().tick().tick();

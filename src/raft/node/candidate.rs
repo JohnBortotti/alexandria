@@ -101,7 +101,8 @@ impl Role<Candidate> {
                     info!(target: "raft_candidate", "candidate received a vote");
                     self.role.votes += 1;
 
-                    // todo: check this rule (i guess it can become leader with majority of votes instead of all votes)
+                    // todo: check this rule 
+                    // (i guess it can become leader with majority of votes instead of all votes)
                     if self.role.votes >= self.peers.len() as u64 {
                         let peers = self.peers.clone();
                         Ok(self
@@ -135,14 +136,18 @@ impl Role<Candidate> {
                 1,
             );
 
-            // todo: fix this poor error handling
-            if let Err(error) = self.node_tx.send(Message::new(
+            match self.node_tx.send(Message::new(
                 self.log.last_term,
                 Address::Peer(self.id.clone()),
                 Address::Broadcast,
                 Event::RequestVote {},
             )) {
-                panic!("{}", error);
+                Ok(..) => 
+                    info!(target: "raft_candidate", 
+                          "candidate sent the message successfully"),
+                Err(e) => 
+                    info!(target: "raft_candidate",
+                          "error when trying to send the message, error: {}", e)
             };
 
             self.into()
