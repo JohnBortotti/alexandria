@@ -1,6 +1,6 @@
 use super::super::{
     message::Address, message::Event, message::Message, node::log::Entry,
-    logging::log_raft, logging::RaftLogType
+    logging::{log_raft, RaftLogType}
 };
 use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
@@ -101,6 +101,7 @@ impl Role<Follower> {
 
                             return Ok(self.follow(Address::Peer(sender)))
                         }
+                        // todo: dont panic!(), just log
                         _ => panic!("Unexpected sender address"),
                     };
                 }

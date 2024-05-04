@@ -1,4 +1,7 @@
-use super::super::{message::Address, message::Event, message::Message};
+use super::super::{
+    message::Address, message::Event, message::Message,
+    logging::{log_raft, RaftLogType}
+};
 use super::{follower::Follower, leader::Leader, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 use rand::Rng;
@@ -15,8 +18,8 @@ impl Candidate {
     pub fn new(election_timeout: u64, election_timeout_rand: u64, votes: u64) -> Self {
         let random_timeout = rand::thread_rng()
             .gen_range(election_timeout..election_timeout + election_timeout_rand);
-        info!(target: "raft_candidate", 
-              "new candidate created, random_timeout is {:?}", random_timeout);
+        // todo: use the new log interface
+        info!("new candidate created, random_timeout is {:?}", random_timeout);
         Self {
             election_ticks: 0,
             election_timeout: random_timeout,
@@ -28,17 +31,27 @@ impl Candidate {
 
 impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
+        log_raft(
+            self.id.clone(),
+            "candidate",
+            RaftLogType::ReceivingMessage { message: msg.clone() }
+        );
+
         match msg.event {
             Event::AppendEntries { entries: _, commit_index: _ } => {
-                info!(target: "raft_candidate", 
-                      "candidate is receiving an appendEntries, checking message term...");
                 if msg.term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
+                        // todo: dont panic!(), just log
                         _ => panic!("Unexpected Address"),
                     };
-                    info!(target: "raft_candidate", 
-                          "candidate is becoming follwer");
+
+                    log_raft(
+                        self.id.clone(),
+                        "candidate",
+                        RaftLogType::RoleChange{ new_role: "follower".to_string() }
+                    );
+
                     Ok(self
                         .become_role(Follower::new(
                             Some(address),
@@ -47,32 +60,41 @@ impl Role<Candidate> {
                         ))
                         .into())
                 } else {
-                    info!(target: "raft_candidate", 
-                          "candidate ignored the appendEntries");
                     Ok(self.into())
                 }
             }
             Event::RequestVote {} => {
-                info!(target: "raft_candidate", 
-                      "candidate received a requestVote, checking message term...");
                 if msg.term > self.log.last_term {
-                    info!(target: "raft_candidate", 
-                          "candidate is voting on the other peer wich has a bigger term");
                     let from = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
+                        // todo: dont panic!(), just log
                         _ => panic!("Unexpected Address"),
                     };
 
-                    self.node_tx
-                        .send(Message::new(
+                    let vote_msg = Message::new(
                             msg.term,
                             Address::Peer(self.id.clone()),
                             Address::Broadcast,
                             Event::Vote {
                                 voted_for: from.clone(),
                             },
-                        ))
+                    );
+
+                    log_raft(
+                        self.id.clone(), 
+                        "candidate",
+                        RaftLogType::SendingMessage { message: vote_msg.clone() }
+                    );
+
+                    self.node_tx
+                        .send(vote_msg)
                         .unwrap();
+
+                    log_raft(
+                        self.id.clone(),
+                        "candidate",
+                        RaftLogType::RoleChange { new_role: "follower".to_string() }
+                    );
 
                     Ok(self
                         .become_role(Follower::new(
@@ -82,27 +104,16 @@ impl Role<Candidate> {
                         ))
                         .into())
                 } else {
-                    info!(target: "raft_candidate", 
-                          "candidate is ignoring the requestVote");
                     Ok(self.into())
                 }
             }
             Event::Vote { voted_for } => {
-                let from = match msg.from {
-                    Address::Peer(addr) => addr.to_string(),
-                    _ => panic!("Unexpected Address"),
-                };
-
-                info!(target: "raft_candidate", 
-                      "candidate is receiving a vote message, term: {}, voted_for: {}, from: {}", 
-                      msg.term, voted_for, from);
-
                 if voted_for == self.id {
-                    info!(target: "raft_candidate", "candidate received a vote");
                     self.role.votes += 1;
 
                     // todo: check this rule 
-                    // (i guess it can become leader with majority of votes instead of all votes)
+                    // i guess it can become leader with 
+                    // majority of votes instead of all votes
                     if self.role.votes >= self.peers.len() as u64 {
                         let peers = self.peers.clone();
                         Ok(self
@@ -112,22 +123,31 @@ impl Role<Candidate> {
                         Ok(self.into())
                     }
                 } else {
-                    info!(target: "raft_candidate", "the voting is for another candidate");
                     Ok(self.into())
                 }
             },
             _ => { 
-                info!(target: "raft_candidate", "receiving another message event");
+                log_raft(
+                    self.id.clone(),
+                    "candidate",
+                    RaftLogType::Error 
+                        { content: "receiving undefined message event".to_string() }
+                );
                 Ok(self.into()) 
             }
         }
     }
 
     pub fn tick(mut self) -> Node {
-        info!(target: "raft_candidate", "candidate tick");
-        self.role.election_ticks += 1;
+        log_raft(
+            self.id.clone(),
+            "candidate",
+            RaftLogType::Tick 
+        );
 
+        self.role.election_ticks += 1;
         if self.role.election_ticks >= self.role.election_timeout {
+            // todo: use the new log interface
             info!(target: "raft_candidate", "election timed out, starting a new election");
             self.log.last_term += 1;
             self.role = Candidate::new(
@@ -136,21 +156,22 @@ impl Role<Candidate> {
                 1,
             );
 
-            match self.node_tx.send(Message::new(
+            let election_msg = Message::new(
                 self.log.last_term,
                 Address::Peer(self.id.clone()),
                 Address::Broadcast,
                 Event::RequestVote {},
-            )) {
-                Ok(..) => 
-                    info!(target: "raft_candidate", 
-                          "candidate sent the message successfully"),
-                Err(e) => 
-                    info!(target: "raft_candidate",
-                          "error when trying to send the message, error: {}", e)
-            };
+            );
 
-            self.into()
+            log_raft(
+                self.id.clone(),
+                "candidate",
+                RaftLogType::SendingMessage { message: election_msg.clone() }
+            );
+
+           self.node_tx.send(election_msg).unwrap();
+
+           self.into()
         } else {
             self.into()
         }
