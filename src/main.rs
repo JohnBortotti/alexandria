@@ -10,6 +10,7 @@ use log::info;
 
 #[tokio::main]
 async fn main() {
+    // config log driver 
     let _ = simple_logging::log_to_file("./logs/info.log", LevelFilter::Info);
 
     let env_addr = env::var("PEER_ADDR").expect("PEER_ADDR env var not found");

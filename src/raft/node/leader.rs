@@ -112,16 +112,13 @@ impl Role<Leader> {
                 let replicated = self.role.peer_last_index
                     .iter()
                     .filter(|entry| entry.1 == &self.log.last_index).count();
-                // todo: use the new log interface
-                info!(target: "raft_leader", 
-                      "leader replicated index {} in {} peers", index, replicated);
-
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
-                    // todo: use the new log interface
-                    info!(target: "raft_leader", "leader commiting safe replicated entries");
-                    info!(target: "raft_leader", 
-                        "leader commit_index now is: {}", self.log.last_index);
+                    log_raft(
+                        self.id.clone(),
+                        "leader",
+                        RaftLogType::LogCommit { index: self.log.last_index }
+                    );
                     self.log.commit(self.log.last_index);
                 }
 
@@ -129,13 +126,19 @@ impl Role<Leader> {
             Event::ClientRequest { command } => {
                 let entry = Entry{ 
                     index: self.log.last_index+1,
-                    term: self.log.last_term, command 
+                    term: self.log.last_term, 
+                    command 
                 };
 
-                // todo: use the new log interface to track this
+                log_raft(
+                    self.id.clone(),
+                    "leader",
+                    RaftLogType::LogAppend { entry: vec!(entry.clone()) }
+                );
+
                 self.log.append(vec!(entry));
-                
                 let new_node = self.broadcast_append_entries();
+
                 return Ok(new_node.into())
             }
         }

@@ -1,5 +1,6 @@
 use serde::Serialize;
-use super::{message::Message, node::Node};
+use super::{message::Message, node::log::Entry };
+use log::info;
 
 #[derive(Serialize)]
 pub enum RaftLogType {
@@ -7,6 +8,8 @@ pub enum RaftLogType {
     RoleChange { new_role: String },
     ReceivingMessage { message: Message },
     SendingMessage { message: Message },
+    LogAppend { entry: Vec<Entry> },
+    LogCommit { index: usize },
     Error { content: String },
 }
 
@@ -21,6 +24,6 @@ pub struct RaftLog {
 // todo: try to remove node_id, since each node log is stored in its own file,
 // i just need to log the id on log startup
 pub fn log_raft(node_id: String, role: &str, log_type: RaftLogType) {
-    let _log = RaftLog { node_id, role: role.to_string(), log_type };
-//     info!("{}", ron::to_string(&log).unwrap());
+    let log_entry = RaftLog { node_id, role: role.to_string(), log_type };
+    info!("{}", ron::to_string(&log_entry).unwrap());
 }

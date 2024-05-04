@@ -44,16 +44,26 @@ impl Role<Follower> {
                         None => {},
                         // todo: implement safe appending, 
                         // avoiding duplicated entries and keep ordering
-                        Some(entries) => self.log.append(entries)
+                        Some(entries) => { 
+                            log_raft(
+                                self.id.clone(),
+                                "follower",
+                                RaftLogType::LogAppend { entry: entries.clone() }
+                            );
+                            self.log.append(entries)
+                        }
                     };
 
                     // todo: implement safe commiting, 
                     // verify if the index are stored in Log,
                     // should i implement this on Log struct?
                     if commit_index > self.log.commit_index {
-                        // todo: add node log/state changing on RaftLogType
-                        info!(target: "raft_follower", 
-                              "follower updating the local commit_index");
+                        log_raft(
+                            self.id.clone(),
+                            "follower",
+                            RaftLogType::LogCommit { index: commit_index }
+                        );
+
                         self.log.commit(commit_index);
                     };
 
