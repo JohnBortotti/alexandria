@@ -18,6 +18,8 @@ pub struct RaftLog {
 }
 
 // this function must be use only for raft nodes
+// todo: try to remove node_id, since each node log is stored in its own file,
+// i just need to log the id on log startup
 pub fn log_raft(node_id: String, role: &str, log_type: RaftLogType) {
     let _log = RaftLog { node_id, role: role.to_string(), log_type };
 //     info!("{}", ron::to_string(&log).unwrap());
