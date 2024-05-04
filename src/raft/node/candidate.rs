@@ -2,10 +2,9 @@ use super::super::{
     message::Address, message::Event, message::Message,
     logging::{log_raft, RaftLogType}
 };
-use super::{follower::Follower, leader::Leader, Node, Role, log::Entry};
+use super::{follower::Follower, leader::Leader, Node, Role };
 use crate::utils::config::CONFIG;
 use rand::Rng;
-use log::info;
 
 pub struct Candidate {
     election_ticks: u64,
@@ -16,10 +15,13 @@ pub struct Candidate {
 
 impl Candidate {
     pub fn new(election_timeout: u64, election_timeout_rand: u64, votes: u64) -> Self {
+        log_raft(
+            RaftLogType::NewRole { new_role: "cadidate".to_string() }
+        );
+
         let random_timeout = rand::thread_rng()
             .gen_range(election_timeout..election_timeout + election_timeout_rand);
-        // todo: use the new log interface
-        info!("new candidate created, random_timeout is {:?}", random_timeout);
+
         Self {
             election_ticks: 0,
             election_timeout: random_timeout,
@@ -32,8 +34,6 @@ impl Candidate {
 impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         log_raft(
-            self.id.clone(),
-            "candidate",
             RaftLogType::ReceivingMessage { message: msg.clone() }
         );
 
@@ -47,9 +47,7 @@ impl Role<Candidate> {
                     };
 
                     log_raft(
-                        self.id.clone(),
-                        "candidate",
-                        RaftLogType::RoleChange{ new_role: "follower".to_string() }
+                        RaftLogType::NewRole{ new_role: "follower".to_string() }
                     );
 
                     Ok(self
@@ -81,8 +79,6 @@ impl Role<Candidate> {
                     );
 
                     log_raft(
-                        self.id.clone(), 
-                        "candidate",
                         RaftLogType::SendingMessage { message: vote_msg.clone() }
                     );
 
@@ -91,9 +87,7 @@ impl Role<Candidate> {
                         .unwrap();
 
                     log_raft(
-                        self.id.clone(),
-                        "candidate",
-                        RaftLogType::RoleChange { new_role: "follower".to_string() }
+                        RaftLogType::NewRole { new_role: "follower".to_string() }
                     );
 
                     Ok(self
@@ -128,8 +122,6 @@ impl Role<Candidate> {
             },
             _ => { 
                 log_raft(
-                    self.id.clone(),
-                    "candidate",
                     RaftLogType::Error 
                         { content: "receiving undefined message event".to_string() }
                 );
@@ -140,15 +132,15 @@ impl Role<Candidate> {
 
     pub fn tick(mut self) -> Node {
         log_raft(
-            self.id.clone(),
-            "candidate",
             RaftLogType::Tick 
         );
 
         self.role.election_ticks += 1;
         if self.role.election_ticks >= self.role.election_timeout {
-            // todo: use the new log interface
-            info!(target: "raft_candidate", "election timed out, starting a new election");
+            log_raft(
+                RaftLogType::NewRole { new_role: "cadidate".to_string() }
+            );
+
             self.log.last_term += 1;
             self.role = Candidate::new(
                 self.role.election_timeout,
@@ -164,8 +156,6 @@ impl Role<Candidate> {
             );
 
             log_raft(
-                self.id.clone(),
-                "candidate",
                 RaftLogType::SendingMessage { message: election_msg.clone() }
             );
 
@@ -182,7 +172,7 @@ impl Role<Candidate> {
 mod tests {
     use super::*;
     use crate::raft::message::Message;
-    use crate::raft::node::Log;
+    use crate::raft::node::{Log, log::Entry};
     use crate::raft::state_machine::Instruction;
     use tokio::sync::mpsc::UnboundedReceiver;
 

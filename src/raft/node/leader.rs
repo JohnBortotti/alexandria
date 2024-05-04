@@ -4,7 +4,6 @@ use super::super::{
     logging::{log_raft, RaftLogType}
 };
 use std::collections::HashMap;
-use log::info;
 
 pub struct Leader {
     pub peer_last_index: HashMap<String, usize>,
@@ -14,9 +13,10 @@ pub struct Leader {
 
 impl Leader {
     pub fn new(peers: Vec<String>, idle_timeout: u64) -> Self {
-        // todo: log with the new interface
-        info!(target: "raft_leader", "a wild new leader appers");
-        info!(target: "raft_leader", "leader idle timeout: {}", idle_timeout);
+        log_raft(
+            RaftLogType::NewRole { new_role: "leader".to_string() }
+        );
+
         let mut leader = Self {
             peer_last_index: HashMap::new(),
             idle_ticks: 0,
@@ -32,8 +32,6 @@ impl Leader {
 impl Role<Leader> {
     pub fn tick(mut self) -> Node {
         log_raft(
-            self.id.clone(),
-            "leader",
             RaftLogType::Tick
         );
 
@@ -60,8 +58,6 @@ impl Role<Leader> {
                 );
 
                 log_raft(
-                    self.id.clone(),
-                    "leader",
                     RaftLogType::SendingMessage { message: msg.clone() }
                 );
 
@@ -78,8 +74,6 @@ impl Role<Leader> {
                         });
 
                 log_raft(
-                    self.id.clone(),
-                    "leader",
                     RaftLogType::SendingMessage { message: msg.clone() }
                 );
 
@@ -92,8 +86,6 @@ impl Role<Leader> {
 
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         log_raft(
-            self.id.clone(),
-            "candidate",
             RaftLogType::ReceivingMessage { message: msg.clone() }
         );
 
@@ -115,8 +107,6 @@ impl Role<Leader> {
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
                     log_raft(
-                        self.id.clone(),
-                        "leader",
                         RaftLogType::LogCommit { index: self.log.last_index }
                     );
                     self.log.commit(self.log.last_index);
@@ -131,8 +121,6 @@ impl Role<Leader> {
                 };
 
                 log_raft(
-                    self.id.clone(),
-                    "leader",
                     RaftLogType::LogAppend { entry: vec!(entry.clone()) }
                 );
 

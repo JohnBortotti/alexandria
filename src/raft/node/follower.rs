@@ -1,10 +1,9 @@
 use super::super::{
-    message::Address, message::Event, message::Message, node::log::Entry,
+    message::Address, message::Event, message::Message, 
     logging::{log_raft, RaftLogType}
 };
 use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
-use log::info;
 
 pub struct Follower {
     pub leader: Option<String>,
@@ -15,7 +14,9 @@ pub struct Follower {
 
 impl Follower {
     pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
-        // todo: log with the new interface
+        log_raft(
+            RaftLogType::NewRole { new_role: "cadidate".to_string() }
+        );
         Self {
             leader,
             voted,
@@ -28,8 +29,6 @@ impl Follower {
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         log_raft(
-            self.id.clone(),
-            "follower",
             RaftLogType::ReceivingMessage { message: msg.clone() }
         );
 
@@ -46,8 +45,6 @@ impl Role<Follower> {
                         // avoiding duplicated entries and keep ordering
                         Some(entries) => { 
                             log_raft(
-                                self.id.clone(),
-                                "follower",
                                 RaftLogType::LogAppend { entry: entries.clone() }
                             );
                             self.log.append(entries)
@@ -59,8 +56,6 @@ impl Role<Follower> {
                     // should i implement this on Log struct?
                     if commit_index > self.log.commit_index {
                         log_raft(
-                            self.id.clone(),
-                            "follower",
                             RaftLogType::LogCommit { index: commit_index }
                         );
 
@@ -80,8 +75,6 @@ impl Role<Follower> {
                     );
 
                     log_raft(
-                        self.id.clone(),
-                        "follower",
                         RaftLogType::SendingMessage { message: ack.clone() }
                     );
 
@@ -102,8 +95,6 @@ impl Role<Follower> {
                             );
 
                             log_raft(
-                                self.id.clone(),
-                                "follower",
                                 RaftLogType::SendingMessage { message: res.clone() }
                             );
 
@@ -120,8 +111,6 @@ impl Role<Follower> {
             Event::Vote { voted_for: _ } => {},
             _ => { 
                 log_raft(
-                    self.id.clone(),
-                    "follower",
                     RaftLogType::Error 
                         { content: "receiving undefined message event".to_string() }
                 );
@@ -133,17 +122,13 @@ impl Role<Follower> {
 
     pub fn tick(mut self) -> Node {
         log_raft(
-            self.id.clone(),
-            "follower",
             RaftLogType::Tick
         );
 
         self.role.leader_seen_ticks += 1;
         if self.role.leader_seen_ticks >= self.role.leader_seen_timeout {
             log_raft(
-                self.id.clone(),
-                "follower",
-                RaftLogType::RoleChange { new_role: "candidate".to_string() }
+                RaftLogType::NewRole { new_role: "candidate".to_string() }
             );
 
             self.log.last_term += 1;
@@ -161,8 +146,6 @@ impl Role<Follower> {
             );
 
             log_raft(
-                candidate.id.clone(),
-                "candidte",
                 RaftLogType::SendingMessage {message: election_msg.clone()}
             );
 
@@ -185,9 +168,7 @@ impl Role<Follower> {
         };
 
         log_raft(
-            self.id.clone(),
-            "follower",
-            RaftLogType::RoleChange { new_role: "follower".to_string() }
+            RaftLogType::NewRole { new_role: "follower".to_string() }
         );
 
         let follower = self.become_role(Follower::new(
@@ -203,7 +184,7 @@ impl Role<Follower> {
 mod tests {
     use super::*;
     use crate::raft::message::Message;
-    use crate::raft::node::Log;
+    use crate::raft::node::{Log, log::Entry};
     use crate::raft::state_machine::Instruction;
     use tokio::sync::mpsc::UnboundedReceiver;
 
