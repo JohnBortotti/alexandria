@@ -1,4 +1,4 @@
-use super::super::{message::Address, message::Event, message::Message};
+use super::super::{message::Address, message::Event, message::Message, node::log::Entry};
 use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
 use log::info;
@@ -23,31 +23,67 @@ impl Follower {
 
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
-        info!(target: "raft_follower", "the follower is receiving a message from {:?}", &msg.from);
+        info!(target: "raft_follower", 
+              "the follower is receiving a message from {:?}", &msg.from);
         if self.is_leader(&msg.from) {
             info!(target: "raft_follower", "message from leader, reseting seen ticks");
             self.role.leader_seen_ticks = 0;
         }
-
+        
         match msg.event {
-            Event::AppendEntries { index: _, term } => {
+            Event::AppendEntries { entries, commit_index } => {
                 if self.is_leader(&msg.from) {
                     info!(target: "raft_follower", "receiving appendEntries from leader");
-                    self.log.append(term, None);
+
+                    info!(target: "raft_follower", 
+                          "receiving appendEntries with commit_index: {}", commit_index);
+
+                    match entries {
+                        None => {},
+                        // todo: implement safe appending, 
+                        // avoiding duplicated entries and keep ordering
+                        Some(entries) => self.log.append(entries)
+                    };
+
+                    // todo: implement safe commiting, 
+                    // verify if the index are stored in Log,
+                    // should i implement this on Log struct?
+                    if commit_index > self.log.commit_index {
+                        info!(target: "raft_follower", 
+                              "follower updating the local commit_index");
+                        self.log.commit(commit_index);
+                    };
+
+                    let leader = match msg.from {
+                        Address::Peer(id) => id,
+                        _ => panic!("Unexpected msg.from value")
+                    };
+                    let ack = Message::new(
+                        msg.term,
+                        Address::Peer(self.id.clone()),
+                        Address::Peer(leader),
+                        Event::AckEntries { index: self.log.last_index }
+                    );
+
+                    info!(target: "raft_follower", 
+                          "sending ackEntries to leader, last_index: {}",
+                          self.log.last_index);
+                    self.node_tx.send(ack).unwrap();
                 }
             }
-            Event::RequestVote { term } => {
+            Event::RequestVote {} => {
                 info!(target: "raft_follower", "follower is receiving a requestVote");
-                if term > self.log.last_term {
+                if msg.term > self.log.last_term {
                     match msg.from {
                         Address::Peer(sender) => {
-                            info!(target: "raft_follower", "the follower is voting for peer {:?}", sender);
+                            info!(target: "raft_follower",
+                                "the follower is voting for peer {:?}", sender);
+
                             let res = Message::new(
-                                term,
+                                msg.term,
                                 Address::Peer(self.id.clone()),
                                 Address::Broadcast,
                                 Event::Vote {
-                                    term,
                                     voted_for: sender.clone(),
                                 },
                             );
@@ -63,11 +99,11 @@ impl Role<Follower> {
                         _ => panic!("Unexpected sender address"),
                     };
                 }
-            }
-            Event::Vote { term, voted_for } => {
+            },
+            Event::Vote { voted_for } => {
                 info!(target: "raft_follower", 
                       "follower is receiving a vote messge, term: {}, voted_for: {}, from: {:?}", 
-                      term, voted_for, &msg.from);
+                      msg.term, voted_for, &msg.from);
             },
             _ => { info!(target: "raft_candidate", "receiving undefined message event"); }
         };
@@ -92,9 +128,7 @@ impl Role<Follower> {
                 candidate.log.last_term,
                 Address::Peer(candidate.id.clone()),
                 Address::Broadcast,
-                Event::RequestVote {
-                    term: candidate.log.last_term,
-                },
+                Event::RequestVote {},
             )) {
                 panic!("{}", error);
             }
@@ -187,14 +221,14 @@ mod tests {
 
     #[test]
     fn follower_step_reset_seen_ticks() {
-        let (follower, _, _) = setup();
+        let (follower, _node_rx, _) = setup();
 
         let node = follower.tick();
 
         match node {
             Node::Follower(follower) => {
                 let msg = Message {
-                    event: Event::AppendEntries { index: 1, term: 1 },
+                    event: Event::AppendEntries { entries: None, commit_index: 0 },
                     term: 1,
                     to: Address::Peer("b".into()),
                     from: Address::Peer("a".into()),
@@ -204,6 +238,7 @@ mod tests {
                 match follower {
                     Ok(Node::Follower(follower)) => {
                         assert_eq!(follower.role.leader_seen_ticks, 0);
+                        assert_eq!(follower.log.entries.len(), 0);
                         assert_eq!(follower.role.leader, Some("a".into()))
                     }
                     _ => panic!("Expected node to be follower"),
@@ -212,4 +247,86 @@ mod tests {
             _ => panic!("Expected node to be follower"),
         }
     }
+
+    #[tokio::test]
+    async fn follower_must_append_log_on_append_entries() {
+        let (mut follower, _node_rx, _) = setup();
+        follower.role.leader = Some(String::from("a"));
+
+        let entries = vec!(
+            Entry { 
+                command: "command1".to_string(),
+                index: 1,
+                term: 1
+            },
+            Entry {
+                command: "command2".to_string(),
+                index: 2,
+                term: 1
+            }
+        );
+        let append_entries = Message {
+            term: 1,
+            from: Address::Peer("a".to_string()),
+            to: Address::Broadcast,
+            event: Event::AppendEntries { entries: Some(entries), commit_index: 0 }
+        };
+
+        let follower = follower.step(append_entries).unwrap();
+        match follower {
+            Node::Follower(follower) => {
+                assert_eq!(follower.log.last_term, 1);
+                assert_eq!(follower.log.last_index, 2);
+                assert_eq!(follower.log.entries[0].index, 1);
+                assert_eq!(follower.log.entries[0].command, "command1");
+                assert_eq!(follower.log.entries[1].index, 2);
+                assert_eq!(follower.log.entries[1].command, "command2");
+            },
+            _ => panic!("Expected node to be Follower")
+        };
+    }
+
+    #[tokio::test]
+    async fn follower_must_append_logs_then_update_commit_index() {
+        let (mut follower, _node_rx, _) = setup();
+        follower.role.leader = Some(String::from("a"));
+
+        let entries = vec!(
+            Entry { 
+                command: "command1".to_string(),
+                index: 1,
+                term: 1
+            },
+            Entry {
+                command: "command2".to_string(),
+                index: 2,
+                term: 1
+            }
+        );
+        let append_entries = Message {
+            term: 1,
+            from: Address::Peer("a".to_string()),
+            to: Address::Broadcast,
+            event: Event::AppendEntries { entries: Some(entries), commit_index: 0 }
+        };
+        let follower = follower.step(append_entries).unwrap();
+
+        let commit_update = Message {
+            term: 1,
+            from: Address::Peer("a".to_string()),
+            to: Address::Broadcast,
+            event: Event::AppendEntries { entries: None, commit_index: 1 }
+        };
+        let follower = follower.step(commit_update).unwrap();
+        match follower {
+            Node::Follower(follower) => {
+                assert_eq!(follower.log.last_term, 1);
+                assert_eq!(follower.log.entries[0].command, "command1");
+                assert_eq!(follower.log.entries[1].command, "command2");
+                assert_eq!(follower.log.commit_index, 1);
+            },
+            _ => panic!("Expected node to be Follower")
+        };
+    }
+
 }

@@ -1,5 +1,5 @@
 use super::super::{message::Address, message::Event, message::Message};
-use super::{follower::Follower, leader::Leader, Node, Role};
+use super::{follower::Follower, leader::Leader, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 use rand::Rng;
 use log::info;
@@ -29,10 +29,10 @@ impl Candidate {
 impl Role<Candidate> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
         match msg.event {
-            Event::AppendEntries { index: _, term } => {
+            Event::AppendEntries { entries: _, commit_index: _ } => {
                 info!(target: "raft_candidate", 
                       "candidate is receiving an appendEntries, checking message term...");
-                if term >= self.log.last_term {
+                if msg.term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
                         _ => panic!("Unexpected Address"),
@@ -52,10 +52,10 @@ impl Role<Candidate> {
                     Ok(self.into())
                 }
             }
-            Event::RequestVote { term } => {
+            Event::RequestVote {} => {
                 info!(target: "raft_candidate", 
                       "candidate received a requestVote, checking message term...");
-                if term > self.log.last_term {
+                if msg.term > self.log.last_term {
                     info!(target: "raft_candidate", 
                           "candidate is voting on the other peer wich has a bigger term");
                     let from = match msg.from {
@@ -65,11 +65,10 @@ impl Role<Candidate> {
 
                     self.node_tx
                         .send(Message::new(
-                            term,
+                            msg.term,
                             Address::Peer(self.id.clone()),
                             Address::Broadcast,
                             Event::Vote {
-                                term,
                                 voted_for: from.clone(),
                             },
                         ))
@@ -88,7 +87,7 @@ impl Role<Candidate> {
                     Ok(self.into())
                 }
             }
-            Event::Vote { term, voted_for } => {
+            Event::Vote { voted_for } => {
                 let from = match msg.from {
                     Address::Peer(addr) => addr.to_string(),
                     _ => panic!("Unexpected Address"),
@@ -96,12 +95,14 @@ impl Role<Candidate> {
 
                 info!(target: "raft_candidate", 
                       "candidate is receiving a vote message, term: {}, voted_for: {}, from: {}", 
-                      term, voted_for, from);
+                      msg.term, voted_for, from);
 
                 if voted_for == self.id {
                     info!(target: "raft_candidate", "candidate received a vote");
                     self.role.votes += 1;
 
+                    // todo: check this rule 
+                    // (i guess it can become leader with majority of votes instead of all votes)
                     if self.role.votes >= self.peers.len() as u64 {
                         let peers = self.peers.clone();
                         Ok(self
@@ -116,7 +117,7 @@ impl Role<Candidate> {
                 }
             },
             _ => { 
-                info!(target: "raft_candidate", "receiving undefined message event");
+                info!(target: "raft_candidate", "receiving another message event");
                 Ok(self.into()) 
             }
         }
@@ -135,15 +136,18 @@ impl Role<Candidate> {
                 1,
             );
 
-            if let Err(error) = self.node_tx.send(Message::new(
+            match self.node_tx.send(Message::new(
                 self.log.last_term,
                 Address::Peer(self.id.clone()),
                 Address::Broadcast,
-                Event::RequestVote {
-                    term: self.log.last_term,
-                },
+                Event::RequestVote {},
             )) {
-                panic!("{}", error);
+                Ok(..) => 
+                    info!(target: "raft_candidate", 
+                          "candidate sent the message successfully"),
+                Err(e) => 
+                    info!(target: "raft_candidate",
+                          "error when trying to send the message, error: {}", e)
             };
 
             self.into()
@@ -219,7 +223,10 @@ mod tests {
         let (candidate, _, _) = setup();
 
         let msg = Message {
-            event: Event::AppendEntries { index: 1, term: 2 },
+            event: Event::AppendEntries { 
+                entries: Some(vec!(Entry { index: 1, term: 2, command: "".to_string()})),
+                commit_index: 0
+            },
             term: 2,
             to: Address::Broadcast,
             from: Address::Peer("c".into()),

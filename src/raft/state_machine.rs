@@ -1,31 +1,24 @@
-use super::message::{Address, Message};
+use super::message::Message;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
 use log::info;
 
-#[derive(Clone, Debug)]
-pub struct Entry {
-    pub index: u64,
-    pub term: u64,
-    pub command: Option<Vec<u8>>,
-}
-
+// todo: update the command data structure
 #[derive(Debug)]
-pub enum Instruction {
-    Abort,
-    Append { entry: Entry },
-    Notify { id: Vec<u8>, address: Address },
-    Vote { term: u64, address: Address },
+pub struct Instruction {
+    pub index: usize,
+    pub term: u64,
+    pub command: String,
 }
 
-pub struct StateDriver {
+pub struct StateMachine {
     state_rx: UnboundedReceiverStream<Instruction>,
     node_tx: UnboundedSender<Message>,
-    applied_index: u64,
+    applied_index: usize,
 }
 
-impl StateDriver {
+impl StateMachine {
     pub fn new(
         state_rx: UnboundedReceiver<Instruction>,
         node_tx: UnboundedSender<Message>,
@@ -43,6 +36,12 @@ impl StateDriver {
         while let Some(msg) = self.state_rx.next().await {
             println!("\nInstruction received by state_driver:");
             println!("{:?}", msg);
+
+            // todo: execute command 
+            
+            self.applied_index = msg.index;
+
+            // todo: return response
         }
     }
 }

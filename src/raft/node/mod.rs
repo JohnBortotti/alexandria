@@ -1,54 +1,13 @@
 use super::message::Message;
-use super::state_machine::{Instruction, StateDriver};
+use super::state_machine::{Instruction, StateMachine};
 use crate::utils::config::CONFIG;
 use tokio::sync::mpsc;
+use self::log::Log;
 
-mod candidate;
-mod follower;
-mod leader;
-
-pub struct Entry {
-    index: u64,
-    term: u64,
-    command: Option<Vec<u8>>,
-}
-
-pub struct Log {
-    last_index: u64,
-    last_term: u64,
-    commit_index: u64,
-    commit_term: u64,
-    entries: Vec<Entry>,
-}
-
-impl Log {
-    pub fn new() -> Self {
-        Self {
-            last_index: 0,
-            last_term: 0,
-            commit_index: 0,
-            commit_term: 0,
-            entries: <Vec<Entry>>::default(),
-        }
-    }
-
-    pub fn append(&mut self, term: u64, command: Option<Vec<u8>>) {
-        let entry = Entry {
-            index: self.last_index + 1,
-            term,
-            command,
-        };
-
-        self.last_index += 1;
-        self.last_term = term;
-        self.entries.push(entry);
-    }
-
-    // TODO: commit log (and implement log replication)
-    // pub fn commit(mut self, entry: Entry) {
-    //
-    // }
-}
+pub mod candidate;
+pub mod follower;
+pub mod leader;
+pub mod log;
 
 pub enum Node {
     Follower(Role<follower::Follower>),
@@ -64,9 +23,8 @@ impl Node {
         node_tx: mpsc::UnboundedSender<Message>,
     ) -> Self {
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let driver = StateDriver::new(state_rx, node_tx.clone());
-        tokio::spawn(driver.run());
+        let state_machine = StateMachine::new(state_rx, node_tx.clone());
+        tokio::spawn(state_machine.run());
 
         let node = Role::<follower::Follower> {
             id: id.to_string(),
@@ -102,13 +60,14 @@ impl Node {
     }
 }
 
+// todo: remove pub fields and export a constructor (new::)
 pub struct Role<T> {
-    id: String,
-    peers: Vec<String>,
-    log: Log,
-    role: T,
-    node_tx: mpsc::UnboundedSender<Message>,
-    state_tx: mpsc::UnboundedSender<Instruction>,
+    pub id: String,
+    pub peers: Vec<String>,
+    pub log: Log,
+    pub role: T,
+    pub node_tx: mpsc::UnboundedSender<Message>,
+    pub state_tx: mpsc::UnboundedSender<Instruction>,
 }
 
 impl<R> Role<R> {

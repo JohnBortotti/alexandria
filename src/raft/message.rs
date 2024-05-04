@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use super::node::log::Entry;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub term: u64,
     pub from: Address,
@@ -19,23 +20,18 @@ impl Message {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+// todo: add Client address option
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Address {
     Broadcast,
     Peer(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Event {
-    AppendEntries { index: u64, term: u64 },
-    RequestVote { term: u64 },
-    Vote { term: u64, voted_for: String },
-    ClientRequest { test: u64, query: Query }
+    AppendEntries { entries: Option<Vec<Entry>>, commit_index: usize },
+    AckEntries { index: usize },
+    RequestVote {},
+    Vote { voted_for: String },
+    ClientRequest { command: String }
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Query {
-    Get(u64)
-}
-
-

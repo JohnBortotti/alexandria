@@ -12,11 +12,11 @@ increases his last_term, becomes a candidate, and broadcasts a requestVote messa
 - if a follower receives an requestVote message, it compares the message term with his own last_term, if the message term is bigger, it broadcasts a vote message (voting for the sender node), and 
 starts following the message sender node, otherwise, it just ignores the message
 
-- if a follower receives an Vote message, it just ignores the message
+- if a follower receives a Vote message, it just ignores the message
 
 
 === candidate role ===
-- candidate starts voting for himself (candidate.role.votes == 1)
+- candidate starts voting for himself (candidate.role.votes == 1) and incrementing the current term
 
 - candidate has an election_timeout, when this timeout reaches its limit, the candidate 
 increase his last_term (self last_term+=1) and starts a new election
@@ -31,6 +31,8 @@ increase his last_term (self last_term+=1) and starts a new election
 
 
 === leader role === 
-- the leader node, keep sending hearbeats (broadcast appendEntries messages) to keep leadering
+- the leader node, keep sending hearbeats to keep leadering
 
-- if a leader receives an ...... (write leader role behavior)
+- if a leader receives a client command, it appends its own log with this new entry, then broadcast 
+this entry for other peers, when the majority of peers has received the appendEntries, the leader 
+commits this entry, meaning that it is safe to apply the command to the state machine
