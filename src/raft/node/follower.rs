@@ -15,6 +15,7 @@ pub struct Follower {
 
 impl Follower {
     pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
+        // todo: log with the new interface
         Self {
             leader,
             voted,

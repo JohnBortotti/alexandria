@@ -1,5 +1,8 @@
 use super::{Node, Role, log::Entry};
-use super::super::{message::Message, message::Event, message::Address::{Peer, Broadcast}};
+use super::super::{
+    message::Message, message::Event, message::Address::{Peer, Broadcast},
+    logging::{log_raft, RaftLogType}
+};
 use std::collections::HashMap;
 use log::info;
 
@@ -11,6 +14,7 @@ pub struct Leader {
 
 impl Leader {
     pub fn new(peers: Vec<String>, idle_timeout: u64) -> Self {
+        // todo: log with the new interface
         info!(target: "raft_leader", "a wild new leader appers");
         info!(target: "raft_leader", "leader idle timeout: {}", idle_timeout);
         let mut leader = Self {
@@ -27,9 +31,13 @@ impl Leader {
 
 impl Role<Leader> {
     pub fn tick(mut self) -> Node {
-        info!(target: "raft_leader", "leader tick");
-        self.role.idle_ticks += 1;
+        log_raft(
+            self.id.clone(),
+            "leader",
+            RaftLogType::Tick
+        );
 
+        self.role.idle_ticks += 1;
         if self.role.idle_ticks >= self.role.idle_timeout {
             self.role.idle_ticks = 0;
             self.broadcast_append_entries()
@@ -41,27 +49,41 @@ impl Role<Leader> {
     fn broadcast_append_entries(self) -> Node {
         for (peer, peer_last_index) in &self.role.peer_last_index {
             if peer_last_index.clone() == self.log.last_index {
-                info!(target: "raft_leader", 
-                    "leader is broadcasting a heartbeat, leader term is: {}", self.log.last_term);
-                self.node_tx.send(
-                    Message::new(
+                let msg = Message::new(
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
-                        Event::AppendEntries{ entries: None, commit_index: self.log.commit_index }
-                )).unwrap();
+                        Event::AppendEntries { 
+                            entries: None, 
+                            commit_index: self.log.commit_index 
+                        }
+                );
+
+                log_raft(
+                    self.id.clone(),
+                    "leader",
+                    RaftLogType::SendingMessage { message: msg.clone() }
+                );
+
+                self.node_tx.send(msg).unwrap();
             } else {
-                info!(target: "raft_leader", 
-                      "leader is broadcasting appendEntries to update peers logs");
                 let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
-                info!(target: "raft_leader", "appendEntries logs: {:?}", logs);
-                self.node_tx.send(
-                    Message::new(
+                let msg = Message::new(
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
-                        Event::AppendEntries { entries: Some(logs), commit_index: self.log.commit_index }
-                )).unwrap();
+                        Event::AppendEntries { 
+                            entries: Some(logs), 
+                            commit_index: self.log.commit_index 
+                        });
+
+                log_raft(
+                    self.id.clone(),
+                    "leader",
+                    RaftLogType::SendingMessage { message: msg.clone() }
+                );
+
+                self.node_tx.send(msg).unwrap();
             }
         };
 
@@ -69,21 +91,19 @@ impl Role<Leader> {
     }
 
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
-        match msg.event {
-            Event::AppendEntries { .. } => {
-                info!(target: "raft_leader", "leader receiving an AppendEntries");
-            }
-            Event::Vote { voted_for: _ } => {
-                info!(target: "raft_leader", "leader receiving an Vote");
-            }
-            Event::RequestVote {} => {
-                info!(target: "raft_leader", "leader receiving an RequestVote");
-            }
-            Event::AckEntries { index } => {
-                info!(target: "raft_leader", 
-                    "leader receiving an AckEntries from {:?} with index: {}", msg.from, index);
+        log_raft(
+            self.id.clone(),
+            "candidate",
+            RaftLogType::ReceivingMessage { message: msg.clone() }
+        );
 
+        match msg.event {
+            | Event::AppendEntries {..} 
+            | Event::Vote {..}
+            | Event::RequestVote {..}  => {},
+            Event::AckEntries { index } => {
                 let addr = match msg.from {
+                    // todo: dont panic!(), just log
                     Broadcast => panic!("Expected msg sender to be a peer instead broadcast"),
                     Peer(peer) => peer
                 };
@@ -92,11 +112,13 @@ impl Role<Leader> {
                 let replicated = self.role.peer_last_index
                     .iter()
                     .filter(|entry| entry.1 == &self.log.last_index).count();
+                // todo: use the new log interface
                 info!(target: "raft_leader", 
                       "leader replicated index {} in {} peers", index, replicated);
 
                 if replicated >= (self.peers.len()/2) &&
                     (self.log.last_index > self.log.commit_index) {
+                    // todo: use the new log interface
                     info!(target: "raft_leader", "leader commiting safe replicated entries");
                     info!(target: "raft_leader", 
                         "leader commit_index now is: {}", self.log.last_index);
@@ -105,10 +127,12 @@ impl Role<Leader> {
 
             }
             Event::ClientRequest { command } => {
-                info!(target: "raft_leader", "leader receiving a ClientRequest");
-                info!(target: "raft_leader", "ClientRequest [ command: {:?} ]", command);
+                let entry = Entry{ 
+                    index: self.log.last_index+1,
+                    term: self.log.last_term, command 
+                };
 
-                let entry = Entry{ index: self.log.last_index+1, term: self.log.last_term, command };
+                // todo: use the new log interface to track this
                 self.log.append(vec!(entry));
                 
                 let new_node = self.broadcast_append_entries();
