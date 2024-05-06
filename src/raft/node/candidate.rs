@@ -138,7 +138,7 @@ impl Role<Candidate> {
         self.role.election_ticks += 1;
         if self.role.election_ticks >= self.role.election_timeout {
             log_raft(
-                RaftLogType::NewRole { new_role: "cadidate".to_string() }
+                RaftLogType::NewRole { new_role: "candidate".to_string() }
             );
 
             self.log.last_term += 1;

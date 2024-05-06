@@ -15,7 +15,7 @@ pub struct Follower {
 impl Follower {
     pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
         log_raft(
-            RaftLogType::NewRole { new_role: "cadidate".to_string() }
+            RaftLogType::NewRole { new_role: "follower".to_string() }
         );
         Self {
             leader,
@@ -67,6 +67,7 @@ impl Role<Follower> {
                         // todo: dont panic!(), just log
                         _ => panic!("Unexpected msg.from value")
                     };
+                    // todo: fix this, send ack only if entries != None
                     let ack = Message::new(
                         msg.term,
                         Address::Peer(self.id.clone()),
