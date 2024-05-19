@@ -31,8 +31,6 @@ impl StateMachine {
     }
 
     pub async fn run(mut self) {
-        info!(target: "state_machine", "running state_driver");
-
         while let Some(msg) = self.state_rx.next().await {
             println!("\nInstruction received by state_driver:");
             println!("{:?}", msg);

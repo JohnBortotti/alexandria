@@ -1,5 +1,8 @@
-use super::message::Message;
-use super::state_machine::{Instruction, StateMachine};
+use super::{
+    message::Message,
+    state_machine::{Instruction, StateMachine},
+    logging::{log_raft, RaftLogType}
+};
 use crate::utils::config::CONFIG;
 use tokio::sync::mpsc;
 use self::log::Log;
@@ -36,6 +39,10 @@ impl Node {
         };
 
         if node.peers.is_empty() {
+            log_raft(
+                RaftLogType::NewRole { new_role: "leader".to_string() }
+            );
+
             node.become_role(leader::Leader::new(vec![], CONFIG.raft.leader_idle_timeout))
                 .into()
         } else {

@@ -88,7 +88,7 @@ async fn raft_basic_log_replication() {
     
     // node3 should process the appendEntries and reply with a AckEntries message
     let node3 = node3.step(append_entries_msg).unwrap();
-    let node3 = match node3 {
+    let _node3 = match node3 {
         Node::Follower(follower) => {
             assert_eq!(follower.log.last_index, 1);
             assert_eq!(follower.log.commit_index, 0);

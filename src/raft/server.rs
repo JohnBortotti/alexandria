@@ -12,7 +12,6 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::{TcpListenerStream, UnboundedReceiverStream};
 use tokio_stream::StreamExt as _;
-use log::info;
 
 pub struct Server {
     node: node::Node,
@@ -23,7 +22,6 @@ pub struct Server {
 impl Server {
     pub async fn new(id: &str, peers: Vec<String>, log: Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
-        info!(target: "raft", "raft server starting");
         Self {
             node: node::Node::new(id, peers.clone(), log, node_tx).await,
             peers,
@@ -74,12 +72,9 @@ impl Server {
                         req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                     if req_body.get(1).is_none() {
-                        info!(target: "raft", "message incorrect");
                         panic!("message incorrect");
                     };
 
-                    // example payload: 
-                    // "(term:1,from:Broadcast,to:Broadcast,event:AppendEntries(index:1,term:1))"
                     let parsed_msg: message::Message = ron::from_str(req_body[1]).unwrap();
                     tcp_tr.send(parsed_msg).unwrap();
 
@@ -87,8 +82,8 @@ impl Server {
                     let res = "HTTP/1.1 200 OK\r\n";
                     let _ = socket.try_write(res.as_bytes());
                 }
-                Err(e) => {
-                    info!(target: "raft", "error on reading tcp data: {}", e);
+                Err(..) => {
+                    // todo: log this error
                 }
             }
         }
@@ -106,27 +101,21 @@ impl Server {
             let serialized_msg = ron::to_string(&msg).unwrap();
             let http_packet = format!("HTTP/1.1 200 OK \n\n{}", serialized_msg);
 
-            info!(target: "raft", "tcp sending message to: {:?}", msg.to);
-
             match msg.to {
                 Broadcast => {
                     peers.iter().for_each(|peer| {
-                        info!(target: "raft", "tcp sending broadcast message to peer: {:?}", peer);
                         let _ = match TcpStream::connect(peer) {
                             Ok(mut stream) => stream.write(http_packet.as_bytes()),
                             _ => {
-                                info!(target: "raft", "tcp connection refused (broadcast)");
                                 return;
                             }
                         };
                     });
                 }
                 Peer(addr) => {
-                    info!(target: "raft", "tcp sending individual message to peer: {:?}", addr);
                     let _ = match TcpStream::connect(addr) {
                         Ok(mut stream) => stream.write(http_packet.as_bytes()),
                         _ => {
-                            info!(target: "raft", "tcp connection refused (individual)");
                             return Ok(());
                         }
                     };

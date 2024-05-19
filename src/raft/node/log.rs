@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use log::info;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Entry {
@@ -12,7 +11,6 @@ pub struct Log {
     pub last_index: usize,
     pub last_term: u64,
     pub commit_index: usize,
-    // pub commit_term: u64,
     pub entries: Vec<Entry>,
 }
 
@@ -22,7 +20,6 @@ impl Log {
             last_index: 0,
             last_term: 0,
             commit_index: 0,
-            // commit_term: 0,
             entries: <Vec<Entry>>::default(),
         }
     }
@@ -38,7 +35,6 @@ impl Log {
     // todo: implement commit function
     pub fn commit(&mut self, index: usize) {
         self.commit_index = index;
-        info!("commiting index: {}", index);
     }
 }
 

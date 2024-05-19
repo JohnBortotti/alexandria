@@ -1,7 +1,9 @@
-use super::super::{message::Address, message::Event, message::Message, node::log::Entry};
+use super::super::{
+    message::Address, message::Event, message::Message, 
+    logging::{log_raft, RaftLogType}
+};
 use super::{candidate::Candidate, Node, Role};
 use crate::utils::config::CONFIG;
-use log::info;
 
 pub struct Follower {
     pub leader: Option<String>,
@@ -12,6 +14,9 @@ pub struct Follower {
 
 impl Follower {
     pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
+        log_raft(
+            RaftLogType::NewRole { new_role: "follower".to_string() }
+        );
         Self {
             leader,
             voted,
@@ -23,41 +28,46 @@ impl Follower {
 
 impl Role<Follower> {
     pub fn step(mut self, msg: Message) -> Result<Node, &'static str> {
-        info!(target: "raft_follower", 
-              "the follower is receiving a message from {:?}", &msg.from);
+        log_raft(
+            RaftLogType::ReceivingMessage { message: msg.clone() }
+        );
+
         if self.is_leader(&msg.from) {
-            info!(target: "raft_follower", "message from leader, reseting seen ticks");
             self.role.leader_seen_ticks = 0;
         }
         
         match msg.event {
             Event::AppendEntries { entries, commit_index } => {
                 if self.is_leader(&msg.from) {
-                    info!(target: "raft_follower", "receiving appendEntries from leader");
-
-                    info!(target: "raft_follower", 
-                          "receiving appendEntries with commit_index: {}", commit_index);
-
                     match entries {
                         None => {},
                         // todo: implement safe appending, 
                         // avoiding duplicated entries and keep ordering
-                        Some(entries) => self.log.append(entries)
+                        Some(entries) => { 
+                            log_raft(
+                                RaftLogType::LogAppend { entry: entries.clone() }
+                            );
+                            self.log.append(entries)
+                        }
                     };
 
                     // todo: implement safe commiting, 
                     // verify if the index are stored in Log,
                     // should i implement this on Log struct?
                     if commit_index > self.log.commit_index {
-                        info!(target: "raft_follower", 
-                              "follower updating the local commit_index");
+                        log_raft(
+                            RaftLogType::LogCommit { index: commit_index }
+                        );
+
                         self.log.commit(commit_index);
                     };
 
                     let leader = match msg.from {
                         Address::Peer(id) => id,
+                        // todo: dont panic!(), just log
                         _ => panic!("Unexpected msg.from value")
                     };
+                    // todo: fix this, send ack only if entries != None
                     let ack = Message::new(
                         msg.term,
                         Address::Peer(self.id.clone()),
@@ -65,20 +75,17 @@ impl Role<Follower> {
                         Event::AckEntries { index: self.log.last_index }
                     );
 
-                    info!(target: "raft_follower", 
-                          "sending ackEntries to leader, last_index: {}",
-                          self.log.last_index);
+                    log_raft(
+                        RaftLogType::SendingMessage { message: ack.clone() }
+                    );
+
                     self.node_tx.send(ack).unwrap();
                 }
             }
             Event::RequestVote {} => {
-                info!(target: "raft_follower", "follower is receiving a requestVote");
                 if msg.term > self.log.last_term {
                     match msg.from {
                         Address::Peer(sender) => {
-                            info!(target: "raft_follower",
-                                "the follower is voting for peer {:?}", sender);
-
                             let res = Message::new(
                                 msg.term,
                                 Address::Peer(self.id.clone()),
@@ -88,35 +95,43 @@ impl Role<Follower> {
                                 },
                             );
 
+                            log_raft(
+                                RaftLogType::SendingMessage { message: res.clone() }
+                            );
+
                             self.node_tx.send(res).unwrap();
-                            info!(target: "raft_follower", 
-                                  "follower granted a vote, reseting leader_seen_ticks");
                             self.role.leader_seen_ticks = 0;
-                            info!(target: "raft_follower", "following the peer i voted for");
 
                             return Ok(self.follow(Address::Peer(sender)))
                         }
+                        // todo: dont panic!(), just log
                         _ => panic!("Unexpected sender address"),
                     };
                 }
             },
-            Event::Vote { voted_for } => {
-                info!(target: "raft_follower", 
-                      "follower is receiving a vote messge, term: {}, voted_for: {}, from: {:?}", 
-                      msg.term, voted_for, &msg.from);
-            },
-            _ => { info!(target: "raft_candidate", "receiving undefined message event"); }
+            Event::Vote { voted_for: _ } => {},
+            _ => { 
+                log_raft(
+                    RaftLogType::Error 
+                        { content: "receiving undefined message event".to_string() }
+                );
+            }
         };
 
         Ok(self.into())
     }
 
     pub fn tick(mut self) -> Node {
-        info!(target: "raft_follower", "follower tick");
-        self.role.leader_seen_ticks += 1;
+        log_raft(
+            RaftLogType::Tick
+        );
 
+        self.role.leader_seen_ticks += 1;
         if self.role.leader_seen_ticks >= self.role.leader_seen_timeout {
-            info!(target: "raft_follower", "follower starting an election");
+            log_raft(
+                RaftLogType::NewRole { new_role: "candidate".to_string() }
+            );
+
             self.log.last_term += 1;
             let candidate = self.become_role(Candidate::new(
                 CONFIG.raft.candidate_election_timeout,
@@ -124,16 +139,18 @@ impl Role<Follower> {
                 1,
             ));
 
-            if let Err(error) = candidate.node_tx.send(Message::new(
+            let election_msg = Message::new(
                 candidate.log.last_term,
                 Address::Peer(candidate.id.clone()),
                 Address::Broadcast,
                 Event::RequestVote {},
-            )) {
-                panic!("{}", error);
-            }
+            );
 
-            info!(target: "raft_follower", "follower sent election request");
+            log_raft(
+                RaftLogType::SendingMessage {message: election_msg.clone()}
+            );
+
+            candidate.node_tx.send(election_msg).unwrap();
             candidate.into()
         } else {
             self.into()
@@ -147,8 +164,13 @@ impl Role<Follower> {
     fn follow(self, leader: Address) -> Node {
         let address = match leader {
             Address::Peer(addr) => addr,
+            // todo: dont panic!(), just log
             _ => panic!("Expected leader to be an Peer Address"),
         };
+
+        log_raft(
+            RaftLogType::NewRole { new_role: "follower".to_string() }
+        );
 
         let follower = self.become_role(Follower::new(
             Some(address),
@@ -163,7 +185,7 @@ impl Role<Follower> {
 mod tests {
     use super::*;
     use crate::raft::message::Message;
-    use crate::raft::node::Log;
+    use crate::raft::node::{Log, log::Entry};
     use crate::raft::state_machine::Instruction;
     use tokio::sync::mpsc::UnboundedReceiver;
 
