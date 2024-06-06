@@ -67,7 +67,8 @@ impl Node {
     }
 }
 
-// todo: remove pub fields and export a constructor (new::)
+// todo:
+// remove pub fields and export a constructor (new::)
 pub struct Role<T> {
     pub id: String,
     pub peers: Vec<String>,

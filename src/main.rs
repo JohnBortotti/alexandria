@@ -36,10 +36,10 @@ async fn main() {
     let _ = server.serve(tcp_listener).await;
 
     // curl -X POST -d '(term:1, from: Peer("test"), to: Peer("test"), event: ClientRequest(command: "test"))' url
-    // 
-    // todo: create the client layer, responsible to create properly formatted messages to peers, and
-    // redirect messages that were sent to peers that are not leaders. 
-    //
-    // user request/message -> raft/client -> raft/server -> peer/node
-    //
+     
+    /* todo:
+     * create the client layer,
+     * responsible to create a valid packet, validate the query 
+     * and handle redirects (from followers to leaders)
+    */
 }

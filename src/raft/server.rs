@@ -67,7 +67,8 @@ impl Server {
                 Ok(bytes_read) => {
                     let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
 
-                    // TODO: add validation to incoming messages
+                    // todo:
+                    // add validation to incoming messages
                     let req_body: Vec<&str> =
                         req_text.lines().skip_while(|x| !x.is_empty()).collect();
 

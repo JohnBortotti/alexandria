@@ -42,7 +42,8 @@ impl Role<Candidate> {
                 if msg.term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
-                        // todo: dont panic!(), just log
+                        // todo:
+                        // dont panic!(), just log
                         _ => panic!("Unexpected Address"),
                     };
 
@@ -105,7 +106,8 @@ impl Role<Candidate> {
                 if voted_for == self.id {
                     self.role.votes += 1;
 
-                    // todo: check this rule 
+                    // todo:
+                    // check this rule,
                     // i guess it can become leader with 
                     // majority of votes instead of all votes
                     if self.role.votes >= self.peers.len() as u64 {

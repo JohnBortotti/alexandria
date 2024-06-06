@@ -95,7 +95,8 @@ impl Role<Leader> {
             | Event::RequestVote {..}  => {},
             Event::AckEntries { index } => {
                 let addr = match msg.from {
-                    // todo: dont panic!(), just log
+                    // todo:
+                    // dont panic!(), just log
                     Broadcast => panic!("Expected msg sender to be a peer instead broadcast"),
                     Peer(peer) => peer
                 };
