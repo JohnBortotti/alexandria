@@ -4,11 +4,14 @@ use tokio::sync::mpsc::unbounded_channel;
 #[tokio::test]
 async fn raft_basic_election() {
     let (node_tx_1, mut node_rx_1) = unbounded_channel();
+    let (outbound_tx, mut outbound_rx) = unbounded_channel();
+
     let node1 = Node::new(
         "a",
         vec!("b".to_string(), "c".to_string()),
         Log::new(),
-        node_tx_1
+        node_tx_1,
+        outbound_tx.clone()
         ).await;
 
     let (node_tx_2, mut node_rx_2) = unbounded_channel();
@@ -16,7 +19,8 @@ async fn raft_basic_election() {
         "b",
         vec!("a".to_string(), "c".to_string()),
         Log::new(),
-        node_tx_2
+        node_tx_2,
+        outbound_tx.clone()
         ).await;
 
     let (node_tx_3, mut node_rx_3) = unbounded_channel();
@@ -24,7 +28,8 @@ async fn raft_basic_election() {
         "c",
         vec!("a".to_string(), "b".to_string()),
         Log::new(),
-        node_tx_3
+        node_tx_3,
+        outbound_tx
         ).await;
 
     // node1 should broadcast request_vote messages

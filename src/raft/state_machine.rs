@@ -24,7 +24,11 @@ impl StateMachine {
     pub async fn run(mut self, self_addr: String) {
         while let Some(entry) = self.state_rx.next().await {
 
-            // todo: execute command on store engine
+            // todo: 
+            // execute the command on store engine
+            //
+            // how to communicate with storage? create another channel?
+            // provide concurrent access to the storage and handle locks
             self.applied_index = entry.index;
 
             // todo:
@@ -36,7 +40,7 @@ impl StateMachine {
                     Address::Peer(self_addr.clone()),
                     Event::StateResponse { 
                         request_id: entry.request_id,
-                        result: Ok("instruction executed succesfully".to_string()) 
+                        result: Ok(format!("instruction executed succesfully: {}", entry.command))
                     }
             )).unwrap();
         }

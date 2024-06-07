@@ -26,9 +26,6 @@ pub struct Server {
     node: node::Node,
     peers: Vec<String>,
     node_rx: UnboundedReceiver<message::Message>,
-    // todo:
-    // this channel does not need to be of type message::Message, 
-    // simplify this package
     outbound_rx: UnboundedReceiver<(u64, String)>,
     connection_table: Arc<Mutex<HashMap<u64, tokio::net::TcpStream>>>,
 }
@@ -93,23 +90,17 @@ impl Server {
                 _ = ticker.tick() => node = node.tick(),
                 Some(msg) = tcp_rx.next() => node = node.step(msg)?,
                 Some(response) = response_rx.next() => {
-                            println!("receiving message from node");
-                            println!("request_id: {:?}", response.0);
-                            println!("result: {:?}", response.1);
-
                             let socket = {
                                 let mut map = connection_table.lock().unwrap();
                                 map.remove(&response.0)
                             };
 
-                            // todo: 
-                            // write response packet
-                            let body = "TOMA AQUI O CONTEXTO";
                             let status_line = "HTTP/1.1 200 OK\r\n";
-                            let content_length = format!("Content-Length: {}\r\n", body.len());
+                            let content_length = format!("Content-Length: {}\r\n", response.1.len());
                             let headers = "Content-Type: text/plain\r\n\r\n";
                             let response = 
-                                format!("{}{}{}{}", status_line, content_length, headers, body);
+                                format!("{}{}{}{}",
+                                        status_line, content_length, headers, response.1);
 
                             if let Some(mut socket) = socket {
                                 if let Err(err) = 
@@ -153,7 +144,7 @@ impl Server {
                         // todo: change the outbound_node_tx channel since the message is not a
                         // raft_message packet
                         // set the payload and add the request_id
-                        let user_command: &str = req_body[1];
+                        let user_command = format!("{}\n", req_body[1]);
                         let msg = message::Message::new(
                             1,
                             message::Address::Client,

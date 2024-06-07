@@ -195,6 +195,7 @@ mod tests {
     ) {
         let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (outbound_tx, _) = tokio::sync::mpsc::unbounded_channel();
 
         let follower = Role {
             id: "d".into(),
@@ -202,6 +203,7 @@ mod tests {
             log: Log::new(),
             node_tx,
             state_tx,
+            outbound_tx,
             role: Follower::new(Some("a".into()), None, 2),
         };
 
@@ -276,11 +278,13 @@ mod tests {
 
         let entries = vec!(
             Entry { 
+                request_id: None,
                 command: "command1".to_string(),
                 index: 1,
                 term: 1
             },
             Entry {
+                request_id: None,
                 command: "command2".to_string(),
                 index: 2,
                 term: 1
@@ -314,11 +318,13 @@ mod tests {
 
         let entries = vec!(
             Entry { 
+                request_id: None,
                 command: "command1".to_string(),
                 index: 1,
                 term: 1
             },
             Entry {
+                request_id: None,
                 command: "command2".to_string(),
                 index: 2,
                 term: 1

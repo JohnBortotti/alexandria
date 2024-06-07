@@ -137,10 +137,6 @@ impl Role<Leader> {
                 }
             }
             Event::ClientRequest { request_id, command } => {
-                println!("leader receiving clientRequest");
-                println!("request_id: {}", request_id);
-                println!("command: {}", command);
-
                 let entry = Entry { 
                     request_id: Some(request_id),
                     index: self.log.last_index+1,

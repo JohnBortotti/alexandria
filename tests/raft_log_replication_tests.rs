@@ -1,5 +1,6 @@
 use alexandria::raft::{
     node::log::Log, node::Role, node::Node, node::leader::Leader, 
+    state_machine::StateMachine,
     node::follower::Follower,
     message::Message, message::Event, message::Address
 };
@@ -8,7 +9,12 @@ use tokio::sync::mpsc::unbounded_channel;
 #[tokio::test] 
 async fn raft_basic_log_replication() {
     let (node_tx_1, mut node_rx_1) = tokio::sync::mpsc::unbounded_channel();
-    let (state_tx_1, _) = tokio::sync::mpsc::unbounded_channel();
+    let (state_tx_1, state_rx_1) = tokio::sync::mpsc::unbounded_channel();
+    let (outbound_tx, _) = tokio::sync::mpsc::unbounded_channel();
+
+    let state_machine = StateMachine::new(state_rx_1, node_tx_1.clone());
+    tokio::spawn(state_machine.run("a".to_string()));
+
     let peers_1 = vec!["b".into(), "c".into()];
     let leader = Role {
         id: "a".into(),
@@ -16,6 +22,7 @@ async fn raft_basic_log_replication() {
         log: Log::new(),
         node_tx: node_tx_1,
         state_tx: state_tx_1,
+        outbound_tx: outbound_tx.clone(),
         role: Leader::new(peers_1, 2),
     };
 
@@ -27,6 +34,7 @@ async fn raft_basic_log_replication() {
         log: Log::new(),
         node_tx: node_tx_2,
         state_tx: state_tx_2,
+        outbound_tx: outbound_tx.clone(),
         role: Follower::new(Some("a".to_string()), None, 4)
     };
 
@@ -38,12 +46,16 @@ async fn raft_basic_log_replication() {
         log: Log::new(),
         node_tx: node_tx_3,
         state_tx: state_tx_3,
+        outbound_tx: outbound_tx.clone(),
         role: Follower::new(Some("a".to_string()), None, 4)
     };
 
     // leader should handle a clientRequest
     let client_request = Message {
-        event: Event::ClientRequest { command: String::from("command-test-1") },
+        event: Event::ClientRequest { 
+            request_id: 0,
+            command: String::from("command-test-1") 
+        },
         term: 1,
         to: Address::Peer("l".to_string()),
         from: Address::Peer("".into()),
