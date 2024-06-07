@@ -175,16 +175,16 @@ mod tests {
     use super::*;
     use crate::raft::message::Message;
     use crate::raft::node::{Log, log::Entry};
-    use crate::raft::state_machine::Instruction;
     use tokio::sync::mpsc::UnboundedReceiver;
 
     fn setup() -> (
         Role<Candidate>,
         UnboundedReceiver<Message>,
-        UnboundedReceiver<Instruction>,
+        UnboundedReceiver<Entry>,
     ) {
         let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (outbound_tx, _) = tokio::sync::mpsc::unbounded_channel();
 
         let candidate = Role {
             id: "d".into(),
@@ -192,6 +192,7 @@ mod tests {
             log: Log::new(),
             node_tx,
             state_tx,
+            outbound_tx,
             role: Candidate::new(2, 1, 1),
         };
 
@@ -237,7 +238,7 @@ mod tests {
 
         let msg = Message {
             event: Event::AppendEntries { 
-                entries: Some(vec!(Entry { index: 1, term: 2, command: "".to_string()})),
+                entries: Some(vec!(Entry { request_id: None, index: 1, term: 2, command: "".to_string()})),
                 commit_index: 0
             },
             term: 2,

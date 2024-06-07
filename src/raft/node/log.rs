@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Entry {
+    pub request_id: Option<u64>,
     pub index: usize,
     pub term: u64,
     pub command: String,
@@ -33,6 +34,9 @@ impl Log {
     }
 
     // todo: implement commit function
+    // - run the entry on state_machine
+    // - if everything runs ok, then mark entry as commited
+    // - update the log commit_index
     pub fn commit(&mut self, index: usize) {
         self.commit_index = index;
     }
@@ -53,6 +57,7 @@ mod test {
     fn log_append() {
         let mut log = Log::new();
         log.append(vec!(Entry {
+            request_id: None,
             index: 1,
             term: 0,
             command: "a".to_string()

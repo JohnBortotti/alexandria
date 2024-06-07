@@ -1,6 +1,7 @@
 use super::{
     message::Message,
-    state_machine::{Instruction, StateMachine},
+    node::log::Entry,
+    state_machine::StateMachine,
     logging::{log_raft, RaftLogType}
 };
 use crate::utils::config::CONFIG;
@@ -24,10 +25,11 @@ impl Node {
         peers: Vec<String>,
         log: Log,
         node_tx: mpsc::UnboundedSender<Message>,
+        outbound_tx: mpsc::UnboundedSender<(u64, String)>
     ) -> Self {
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
         let state_machine = StateMachine::new(state_rx, node_tx.clone());
-        tokio::spawn(state_machine.run());
+        tokio::spawn(state_machine.run(id.to_string()));
 
         let node = Role::<follower::Follower> {
             id: id.to_string(),
@@ -36,6 +38,7 @@ impl Node {
             role: follower::Follower::new(None, None, CONFIG.raft.leader_seen_timeout),
             state_tx,
             node_tx,
+            outbound_tx
         };
 
         if node.peers.is_empty() {
@@ -68,12 +71,13 @@ impl Node {
 }
 
 pub struct Role<T> {
-    id: String,
-    peers: Vec<String>,
-    log: Log,
-    role: T,
-    node_tx: mpsc::UnboundedSender<Message>,
-    state_tx: mpsc::UnboundedSender<Instruction>,
+    pub id: String,
+    pub peers: Vec<String>,
+    pub log: Log,
+    pub role: T,
+    pub node_tx: mpsc::UnboundedSender<Message>,
+    pub state_tx: mpsc::UnboundedSender<Entry>,
+    pub outbound_tx: mpsc::UnboundedSender<(u64, String)>
 }
 
 impl<R> Role<R> {
@@ -84,6 +88,7 @@ impl<R> Role<R> {
             log: self.log,
             node_tx: self.node_tx,
             state_tx: self.state_tx,
+            outbound_tx: self.outbound_tx,
             role,
         }
     }
@@ -114,11 +119,13 @@ mod tests {
     #[tokio::test]
     async fn new_node() {
         let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+        let (otx, _) = tokio::sync::mpsc::unbounded_channel();
         let node = Node::new(
             "a",
             vec!["a".to_string(), "b".to_string()],
             Log::new(),
             tx.clone(),
+            otx.clone()
         )
         .await;
 
@@ -134,7 +141,8 @@ mod tests {
     #[tokio::test]
     async fn new_node_become_leader() {
         let (tx, _) = tokio::sync::mpsc::unbounded_channel();
-        let node = Node::new("a", vec![], Log::new(), tx.clone()).await;
+        let (otx, _) = tokio::sync::mpsc::unbounded_channel();
+        let node = Node::new("a", vec![], Log::new(), tx.clone(), otx.clone()).await;
 
         match node {
             Node::Leader(node) => {

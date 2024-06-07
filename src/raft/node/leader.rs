@@ -1,6 +1,6 @@
 use super::{Node, Role, log::Entry};
 use super::super::{
-    message::Message, message::Event, message::Address::{Peer, Broadcast},
+    message::Message, message::Event, message::Address::Peer,
     logging::{log_raft, RaftLogType}
 };
 use std::collections::HashMap;
@@ -96,12 +96,25 @@ impl Role<Leader> {
             | Event::AppendEntries {..} 
             | Event::Vote {..}
             | Event::RequestVote {..}  => {},
+            | Event::StateResponse { request_id, result } => {
+                if let Some(request_id) = request_id {
+                    let res = match result {
+                        Ok(r) => r,
+                        Err(_) => "error on state_machine".to_string()
+                    };
+                    self.outbound_tx.send((request_id, res)).unwrap();
+
+                    return Ok(self.into())
+                };
+
+                return Ok(self.into())
+            },
             Event::AckEntries { index } => {
                 let addr = match msg.from {
                     // todo:
                     // dont panic!(), just log
-                    Broadcast => panic!("Expected msg sender to be a peer instead broadcast"),
-                    Peer(peer) => peer
+                    Peer(peer) => peer,
+                    _ => panic!("Expected msg sender to be a peer instead broadcast"),
                 };
                 self.role.peer_last_index.entry(addr).and_modify(|e| *e = index);
 
@@ -113,12 +126,23 @@ impl Role<Leader> {
                     log_raft(
                         RaftLogType::LogCommit { index: self.log.last_index }
                     );
-                    self.log.commit(self.log.last_index);
-                }
 
+                    // todo:
+                    // commit first on log or state_machine?
+                    // currently the state_machine can retun an error 
+                    // and the log will commit the entry anyway
+                    self.log.commit(self.log.last_index);
+                    let entry = self.log.entries.last().unwrap();
+                    self.state_tx.send(entry.clone()).unwrap();
+                }
             }
-            Event::ClientRequest { command } => {
-                let entry = Entry{ 
+            Event::ClientRequest { request_id, command } => {
+                println!("leader receiving clientRequest");
+                println!("request_id: {}", request_id);
+                println!("command: {}", command);
+
+                let entry = Entry { 
+                    request_id: Some(request_id),
                     index: self.log.last_index+1,
                     term: self.log.last_term, 
                     command 
@@ -130,7 +154,6 @@ impl Role<Leader> {
 
                 self.log.append(vec!(entry));
                 let new_node = self.broadcast_append_entries();
-
                 return Ok(new_node.into())
             }
         }
@@ -143,16 +166,16 @@ mod test {
     use super::*;
     use crate::raft::message::Message;
     use crate::raft::node::Log;
-    use crate::raft::state_machine::Instruction;
     use tokio::sync::mpsc::UnboundedReceiver;
 
     fn setup() -> (
         Role<Leader>,
         UnboundedReceiver<Message>,
-        UnboundedReceiver<Instruction>,
+        UnboundedReceiver<Entry>,
         ) {
         let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (outbound_tx, _) = tokio::sync::mpsc::unbounded_channel();
 
         let peers = vec!["a".into(), "b".into(), "c".into()];
 
@@ -162,6 +185,7 @@ mod test {
             log: Log::new(),
             node_tx,
             state_tx,
+            outbound_tx,
             role: Leader::new(peers, 2),
         };
 
@@ -201,7 +225,7 @@ mod test {
         let (leader, _node_rx, _state_rx) = setup();
 
         let msg = Message {
-            event: Event::ClientRequest { command: String::from("") },
+            event: Event::ClientRequest { command: String::from(""), request_id: 0 },
             term: 2,
             to: Peer("l".to_string()),
             from: Peer("c".into()),
@@ -249,9 +273,9 @@ mod test {
         leader.role.peer_last_index.clear();
         leader.role.peer_last_index.insert("a".to_string(), 1);
         leader.log.append(vec!(
-                Entry{index:1, term: 3, command: String::from("test1")},
-                Entry{index:2, term: 3, command: String::from("test2")},
-                Entry{index:3, term: 3, command: String::from("test3")},
+                Entry{request_id: None, index:1, term: 3, command: String::from("test1")},
+                Entry{request_id: None, index:2, term: 3, command: String::from("test2")},
+                Entry{request_id: None, index:3, term: 3, command: String::from("test3")},
         ));
         leader.broadcast_append_entries();
 
@@ -289,9 +313,9 @@ mod test {
         leader.role.peer_last_index.clear();
         leader.role.peer_last_index.insert("b".to_string(), 0);
         leader.log.append(vec!(
-                Entry{index:1, term: 3, command: String::from("test1")},
-                Entry{index:2, term: 3, command: String::from("test2")},
-                Entry{index:3, term: 3, command: String::from("test3")},
+                Entry{request_id:None, index:1, term: 3, command: String::from("test1")},
+                Entry{request_id:None, index:2, term: 3, command: String::from("test2")},
+                Entry{request_id:None, index:3, term: 3, command: String::from("test3")},
         ));
         leader.broadcast_append_entries();
 

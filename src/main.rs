@@ -28,12 +28,16 @@ async fn main() {
         });
 
     let server = raft::server::Server::new(&env_addr, peers, Log::new()).await;
-    let tcp_listener = match TcpListener::bind("0.0.0.0:8080").await {
+    let raft_listener = match TcpListener::bind("0.0.0.0:8080").await {
+        Ok(listener) => listener,
+        _ => panic!("TCPListener bind error"),
+    };
+    let outbound_listener = match TcpListener::bind("0.0.0.0:5000").await {
         Ok(listener) => listener,
         _ => panic!("TCPListener bind error"),
     };
 
-    let _ = server.serve(tcp_listener).await;
+    let _ = server.serve(raft_listener, outbound_listener).await;
 
     // curl -X POST -d '(term:1, from: Peer("test"), to: Peer("test"), event: ClientRequest(command: "test"))' url
      

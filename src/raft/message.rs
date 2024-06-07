@@ -20,11 +20,12 @@ impl Message {
     }
 }
 
-// todo: add Client address option
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Address {
     Broadcast,
     Peer(String),
+    StateMachine,
+    Client
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -33,5 +34,6 @@ pub enum Event {
     AckEntries { index: usize },
     RequestVote {},
     Vote { voted_for: String },
-    ClientRequest { command: String }
+    ClientRequest { request_id: u64, command: String },
+    StateResponse { request_id: Option<u64>, result: Result<String, String> }
 }

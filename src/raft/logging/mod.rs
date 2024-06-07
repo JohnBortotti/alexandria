@@ -2,6 +2,10 @@ use serde::Serialize;
 use super::{message::Message, node::log::Entry };
 use log::info;
 
+/* todo
+ * update this log interface, 
+ * add warn and error level
+*/
 #[derive(Serialize)]
 pub enum RaftLogType {
     PeerStart { id: String, peers: Vec<String> },

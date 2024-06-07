@@ -186,13 +186,12 @@ mod tests {
     use super::*;
     use crate::raft::message::Message;
     use crate::raft::node::{Log, log::Entry};
-    use crate::raft::state_machine::Instruction;
     use tokio::sync::mpsc::UnboundedReceiver;
 
     fn setup() -> (
         Role<Follower>,
         UnboundedReceiver<Message>,
-        UnboundedReceiver<Instruction>,
+        UnboundedReceiver<Entry>,
     ) {
         let (node_tx, node_rx) = tokio::sync::mpsc::unbounded_channel();
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
