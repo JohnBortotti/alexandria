@@ -1,8 +1,8 @@
 mod lsm;
 
-use std::{
-    path::Path
-};
+use std::path::Path;
+use lsm::TableEntry;
+
 /*
  *
  * 1. initialization:
@@ -26,6 +26,7 @@ use std::{
 // - choose the communication way
 // - choose how to handle data locks
 pub struct Engine {
+    path: String,
     lsm: lsm::Lsm
 }
 
@@ -34,7 +35,26 @@ impl Engine {
         // todo:
         // config path, recover_mode and max_size
         Self { 
+            path: "./.db-data".to_string(),
             lsm: lsm::Lsm::new(Path::new("./.db-data"), false, 128).unwrap()
         }
     }
+
+    pub fn run_command(&mut self, query: String) -> Result<Option<TableEntry>, String> {
+        println!("storage engine running_command: {query}");
+
+        // todo:
+        // parse query into a valid command
+        let entry = lsm::TableEntry {
+            deleted: false,
+            key: query.clone().into(),
+            value: Some(query.clone().into()),
+            timestamp: 1
+        };
+
+        self.lsm.write(Path::new(&self.path), entry).unwrap();
+        let res = self.lsm.search(Path::new(&self.path), &Vec::try_from(query).unwrap()).unwrap();
+
+        Ok(res)
+    } 
 }

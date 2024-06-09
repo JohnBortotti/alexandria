@@ -98,7 +98,6 @@ impl Lsm {
     pub fn search(&self, path: &Path, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {
-                println!("\nkey found on memtable");
                 return Ok(Some(entry.clone()));
             };
 
