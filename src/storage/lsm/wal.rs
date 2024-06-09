@@ -1,3 +1,10 @@
+use super::TableEntry;
+
+use std::{
+    io::{BufWriter, Write},
+    fs::{File, OpenOptions},
+    path::{Path, PathBuf}
+};
 // The WAL (write-ahead-log) component, is an on-disk copy of the Memtable,
 // an append-only file that serves as a backup for node failures while 
 // the memtable is not flushed to disk

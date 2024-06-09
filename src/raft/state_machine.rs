@@ -1,4 +1,8 @@
-use super::{message::{Message, Address, Event}, node::log::Entry};
+use super::{message::{Message, Address, Event}, 
+    node::log::Entry, 
+    super::storage::Engine
+};
+
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
@@ -6,6 +10,7 @@ use tokio_stream::StreamExt as _;
 pub struct StateMachine {
     state_rx: UnboundedReceiverStream<Entry>,
     node_tx: UnboundedSender<Message>,
+    storage: Engine,
     applied_index: usize,
 }
 
@@ -17,13 +22,13 @@ impl StateMachine {
         Self {
             state_rx: UnboundedReceiverStream::new(state_rx),
             node_tx,
+            storage: Engine::new(),
             applied_index: 0,
         }
     }
 
     pub async fn run(mut self, self_addr: String) {
         while let Some(entry) = self.state_rx.next().await {
-
             // todo: 
             // execute the command on store engine
             //

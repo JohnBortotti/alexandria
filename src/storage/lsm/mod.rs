@@ -42,7 +42,8 @@ pub struct Lsm {
 
 impl Lsm {
     // todo:
-    // [ ] implement WAL recovery 
+    // - implement WAL recovery 
+    // - implement multiple databases
     pub fn new(path: &Path, recover_mode: bool, memtable_size: usize) 
         -> Result<Self, std::io::Error> {
             let memtable = memtable::Memtable::new();

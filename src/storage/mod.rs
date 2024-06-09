@@ -34,7 +34,7 @@ impl Engine {
         // todo:
         // config path, recover_mode and max_size
         Self { 
-            lsm: lsm::Lsm::new(Path::new("./"), false, 128).unwrap()
+            lsm: lsm::Lsm::new(Path::new("./.db-data"), false, 128).unwrap()
         }
     }
 }

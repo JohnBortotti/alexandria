@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 mod raft;
 mod utils;
+mod storage;
 
 use std::env;
 use tokio::net::TcpListener;
