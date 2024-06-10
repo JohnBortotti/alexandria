@@ -40,21 +40,31 @@ impl Engine {
         }
     }
 
-    pub fn run_command(&mut self, query: String) -> Result<Option<TableEntry>, String> {
-        println!("storage engine running_command: {query}");
+    // todo:
+    // parse query into a valid command
+    pub fn run_command(&mut self, query: String) -> Result<Option<TableEntry>, std::io::Error> {
+        let query = query
+            .strip_suffix("\r\n")
+            .or(query.strip_suffix("\n"))
+            .unwrap_or(&query);
 
-        // todo:
-        // parse query into a valid command
-        let entry = lsm::TableEntry {
-            deleted: false,
-            key: query.clone().into(),
-            value: Some(query.clone().into()),
-            timestamp: 1
-        };
+        if query.starts_with("get") {
+            let key = query.replace("get ", "");
 
-        self.lsm.write(Path::new(&self.path), entry).unwrap();
-        let res = self.lsm.search(Path::new(&self.path), &Vec::try_from(query).unwrap()).unwrap();
+            return self.lsm.search(Path::new(&self.path), &Vec::try_from(key).unwrap())
+        } else {
+            let query: Vec<&str> = query.split(" ").collect();
 
-        Ok(res)
-    } 
+            let entry = lsm::TableEntry {
+                deleted: false,
+                key: query[0].into(),
+                value: Some(query[1].into()),
+                timestamp: 1
+            };
+
+            self.lsm.write(Path::new(&self.path), entry).unwrap();
+
+            return self.lsm.search(Path::new(&self.path), &Vec::try_from(query[0]).unwrap())
+        }
+    }
 }
