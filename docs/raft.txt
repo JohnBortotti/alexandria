@@ -1,38 +1,35 @@
-notes about the Raft algorithm
+== Notes about the Raft Algorithm
 
+=== Follower Role
 
-=== follower role ===
-- when a node is created, it starts as a follower node
+* When a node is created, it starts as a follower.
+* A follower has a `leader_seen_timeout`. When this timeout reaches its limit, 
+the follower increases its `current_term`, becomes a candidate, 
+and broadcasts a `RequestVote` message (starts an election).
+* If a follower receives an `AppendEntries` message, the local log is updated 
+with the new entries, which can be committed when the leader signals.
+* If a follower receives a `RequestVote` message, it compares the message term with its own `current_term`. 
+If the message term is greater, it broadcasts a vote message (voting for the sender node) and 
+starts following the sender node; otherwise, it ignores the message.
+* If a follower receives a `Vote` message, it ignores it.
 
-- follower has a leader_seen_timeout, when this timeout reaches its limit, the follower 
-increases his last_term, becomes a candidate, and broadcasts a requestVote message (starts an election)
+=== Candidate Role
 
-- if a follower receives an appendEntries, ..... (write the log and state_machine)
+* A candidate starts by voting for itself (`candidate.votes = 1`) and increments the `current_term`.
+* A candidate has an `election_timeout`. When this timeout reaches its limit,
+the candidate increases its `current_term` (`self.current_term += 1`) and starts a new election.
+* When starting a new election, the candidate broadcasts a `RequestVote` message.
+* If a candidate receives an `AppendEntries` message, it checks the sender's `current_term` to decide the next step.
+If the sender's term is greater, it starts following the new node; otherwise, it ignores the message.
+* If a candidate receives a `RequestVote` message, it checks the message term. If the message term is greater than the candidate's `current_term`,
+it broadcasts a vote for the `RequestVote` sender and becomes a follower; otherwise, it ignores the message.
+* If a candidate receives a `Vote` message, it checks the `voted_for` field. If it is the target, it increases its own votes.
+If it gets the majority of votes, it becomes the leader; otherwise, it ignores the message.
 
-- if a follower receives an requestVote message, it compares the message term with his own last_term, if the message term is bigger, it broadcasts a vote message (voting for the sender node), and 
-starts following the message sender node, otherwise, it just ignores the message
+=== Leader Role
 
-- if a follower receives a Vote message, it just ignores the message
+* The leader sends repeated heartbeats to maintain leadership.
+* If a leader receives a client command, it appends its own log with this new entry, then broadcasts this entry to other peers.
+When the majority of peers have received the `AppendEntries`, the leader commits this entry.
+This means it is safe to apply the command to the state machine and return the result to the client.
 
-
-=== candidate role ===
-- candidate starts voting for himself (candidate.role.votes == 1) and incrementing the current term
-
-- candidate has an election_timeout, when this timeout reaches its limit, the candidate 
-increase his last_term (self last_term+=1) and starts a new election
-
-- when starting a new election, the candidate broadcasts a request_vote message
-
-- if a candidate receives an appendEntries message, it checks the message sender last_term to decide the next step (if the sender last_term is bigger, then start following the new node, otherwise, ignore the message)
-
-- if a candidate receives an requestVote message, it checks the message term, to decide the next step (if the message term is bigger than the candidate last_term, it broadcasts a vote for the requestVote sender, and becomes a follower node, otherwise, ignore the message)
-
-- if a candidate receives an Vote message, it checks the "voted_for" message field and if he is the target, increase its own votes, if he got the majority of votes, become a leader node, otherwise, ignore the message)
-
-
-=== leader role === 
-- the leader node, keep sending hearbeats to keep leadering
-
-- if a leader receives a client command, it appends its own log with this new entry, then broadcast 
-this entry for other peers, when the majority of peers has received the appendEntries, the leader 
-commits this entry, meaning that it is safe to apply the command to the state machine
