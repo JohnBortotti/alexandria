@@ -13,6 +13,7 @@ services:
       - "8081:8080"
     volumes:
       - ./logs/peer1/:/usr/src/raft/logs/
+      - ./db-data/peer1/:/usr/src/raft/db-data/
 
   peer2:
     image: alexandria-image
@@ -26,6 +27,7 @@ services:
       - "8082:8080"
     volumes:
       - ./logs/peer2/:/usr/src/raft/logs/
+      - ./db-data/peer2/:/usr/src/raft/db-data/
 
   peer3:
     image: alexandria-image
@@ -39,6 +41,7 @@ services:
       - "8083:8080"
     volumes:
       - ./logs/peer3/:/usr/src/raft/logs/
+      - ./db-data/peer3/:/usr/src/raft/db-data/
 
 networks:
   raft_network:

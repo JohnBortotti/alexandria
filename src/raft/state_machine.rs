@@ -33,13 +33,13 @@ impl StateMachine {
             // provide concurrent access to the storage and handle locks
             self.applied_index = entry.index;
 
-            let result_entry = 
-                match self.storage_engine.run_command(entry.command.clone()).unwrap() {
-                    Some(entry) => format!("{{ key: {:?}, value: {:?}, timestamp: {:?} }}", 
-                                           String::from_utf8(entry.key),
-                                           String::from_utf8(entry.value.unwrap()),
-                                           entry.timestamp),
-                    None => "key not found".to_string()
+            let result_entry: String = 
+                match self.storage_engine.run_command(entry.command.clone()) {
+                    Err(msg) => msg.to_string(),
+                    Ok(val) => match val {
+                        Some(entry) => entry,
+                        None => "key not found".to_string()
+                    }
                 };
 
             // todo:

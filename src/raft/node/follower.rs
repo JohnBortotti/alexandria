@@ -60,6 +60,8 @@ impl Role<Follower> {
                         );
 
                         self.log.commit(commit_index);
+                        // todo: 
+                        // send all uncommited entries to state_machine
                     };
 
                     let leader = match msg.from {

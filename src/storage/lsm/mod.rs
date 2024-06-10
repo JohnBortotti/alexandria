@@ -7,6 +7,7 @@ use std::{
     io::BufReader,
     fs::{File, read_dir, remove_file},
     path::Path,
+    path::PathBuf,
     time::{SystemTime, UNIX_EPOCH}
 };
 /*
@@ -34,6 +35,7 @@ pub struct TableEntry {
 
 #[derive(Debug)]
 pub struct Lsm {
+    path: PathBuf,
     pub memtable: memtable::Memtable,
     memtable_size: usize,
     wal: wal::WAL,
@@ -43,10 +45,11 @@ pub struct Lsm {
 impl Lsm {
     // todo:
     // - implement WAL recovery 
-    // - implement multiple databases
-    pub fn new(path: &Path, recover_mode: bool, memtable_size: usize) 
+    pub fn new(path: PathBuf, recover_mode: bool, memtable_size: usize) 
         -> Result<Self, std::io::Error> {
             let memtable = memtable::Memtable::new();
+            // todo:
+            // remove recover_mode flag, and try to recover by default
             let wal = if recover_mode { 
                 Lsm::search_for_wal_file(&path)?
             } else { 
@@ -58,10 +61,10 @@ impl Lsm {
             };
             let tables = Lsm::search_for_table_files(&path)?;
 
-            Ok(Self { memtable, memtable_size, wal, tables })
+            Ok(Self { path, memtable, memtable_size, wal, tables })
         }
 
-    pub fn write(&mut self, path: &Path, data: TableEntry) -> Result<(), std::io::Error> {
+    pub fn write(&mut self, data: TableEntry) -> Result<(), std::io::Error> {
         if self.memtable.size < self.memtable_size {
             if data.deleted == false {
                 if let Some(val) = &data.value {
@@ -80,14 +83,14 @@ impl Lsm {
                 .unwrap()
                 .as_micros();
 
-            let mut new_table = sstable::SSTable::new(path, timestamp)?;
+            let mut new_table = sstable::SSTable::new(&self.path, timestamp)?;
             new_table.flush(&self.memtable)?;
             self.tables.push(new_table);
 
             self.memtable = memtable::Memtable::new();
 
             remove_file(&self.wal.path)?;
-            self.wal = wal::WAL::new(path, timestamp)?;
+            self.wal = wal::WAL::new(&self.path, timestamp)?;
         }
 
         Ok(())
@@ -95,7 +98,7 @@ impl Lsm {
 
     // TODO:
     // [ ] implement Bloom filter
-    pub fn search(&self, path: &Path, key: &[u8]) 
+    pub fn search(&self, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {
                 return Ok(Some(entry.clone()));
@@ -103,7 +106,7 @@ impl Lsm {
 
             for table in self.tables.iter().rev() {
                 let metadata_file = BufReader::new(
-                    File::open(path.join(table.timestamp.to_string() + ".sst_meta"))?
+                    File::open(self.path.clone().join(table.timestamp.to_string() + ".sst_meta"))?
                     );
             }
             Ok(None)

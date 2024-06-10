@@ -1,6 +1,6 @@
 mod lsm;
 
-use std::path::Path;
+use std::{path::Path, collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
 use lsm::TableEntry;
 
 /*
@@ -26,45 +26,110 @@ use lsm::TableEntry;
 // - choose the communication way
 // - choose how to handle data locks
 pub struct Engine {
-    path: String,
-    lsm: lsm::Lsm
+    root_path: PathBuf,
+    collections: HashMap<String, lsm::Lsm>,
 }
 
 impl Engine {
     pub fn new() -> Self {
         // todo:
-        // config path, recover_mode and max_size
+        // - config path, recover_mode and max_size
+        let root_path = PathBuf::from("./db-data");
+        let mut collections = HashMap::new();
+
+        // scan root path looking for folders (each folder is a collection)
+        if let Ok(entries) = read_dir(root_path.clone()) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        if let Some(folder_name) = path.clone().file_name() {
+                            if let Some(folder_name_str) = folder_name.to_str() {
+                                let collection = lsm::Lsm::new(path, false, 128).unwrap();
+                                collections.insert(folder_name_str.to_string(), collection);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Self { 
-            path: "./.db-data".to_string(),
-            lsm: lsm::Lsm::new(Path::new("./.db-data"), false, 128).unwrap()
+            root_path: root_path.clone(),
+            collections,
         }
     }
 
     // todo:
+    // replicate new collection on raft nodes
+    fn new_collection(&mut self, collection_name: &str) -> Result<(), std::io::Error> {
+        let mut path = PathBuf::from(&self.root_path);
+        path.push(collection_name);
+        create_dir_all(&path)?;
+
+        println!("creating collection at: {:?}", path);
+        let collection = lsm::Lsm::new(path, false, 128).unwrap();
+
+        self.collections.insert(collection_name.to_string(), collection);
+
+        Ok(())
+    }
+
+    // todo:
     // parse query into a valid command
-    pub fn run_command(&mut self, query: String) -> Result<Option<TableEntry>, std::io::Error> {
-        let query = query
+    pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
+        let query: Vec<&str> = query
             .strip_suffix("\r\n")
             .or(query.strip_suffix("\n"))
-            .unwrap_or(&query);
+            .unwrap_or(&query)
+            .split(" ").collect();
 
-        if query.starts_with("get") {
-            let key = query.replace("get ", "");
+        if query[0] == "list" {
+            return Ok(Some(format!("collections: {:?}", self.collections.keys().collect::<Vec<&String>>())))
+        }
 
-            return self.lsm.search(Path::new(&self.path), &Vec::try_from(key).unwrap())
+        if query[0] == "create" {
+            self.new_collection(query[1])?;
+            return Ok(Some(format!("collection created: {:?}", query[1])))
+        }
+
+        let collection: &mut lsm::Lsm = match self.collections.get_mut(query[0]) {
+            Some(collection) => collection,
+            None => return Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("collection not found: {}", query[0])))
+        };
+
+        if query[1] == "get" {
+            let key = query[2];
+
+            match collection.search(&Vec::try_from(key).unwrap()) {
+                Err(msg) => Err(msg),
+                Ok(res) => match res {
+                    None => Ok(None),
+                    Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
+                                                   String::from_utf8(entry.key).unwrap(),
+                                                   String::from_utf8(entry.value.unwrap()).unwrap(),
+                                                   entry.timestamp, entry.deleted))),
+                }
+            }
         } else {
-            let query: Vec<&str> = query.split(" ").collect();
-
             let entry = lsm::TableEntry {
                 deleted: false,
-                key: query[0].into(),
-                value: Some(query[1].into()),
+                key: query[1].into(),
+                value: Some(query[2].into()),
                 timestamp: 1
             };
 
-            self.lsm.write(Path::new(&self.path), entry).unwrap();
-
-            return self.lsm.search(Path::new(&self.path), &Vec::try_from(query[0]).unwrap())
+            collection.write(entry).unwrap();
+            match collection.search(&Vec::try_from(query[1]).unwrap()) {
+                Err(msg) => Err(msg),
+                Ok(res) => match res {
+                    None => Ok(None),
+                    Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
+                                                   String::from_utf8(entry.key).unwrap(),
+                                                   String::from_utf8(entry.value.unwrap()).unwrap(),
+                                                   entry.timestamp, entry.deleted))),
+                }
+            }
         }
     }
 }
