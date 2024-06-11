@@ -59,9 +59,12 @@ impl Role<Follower> {
                             RaftLogType::LogCommit { index: commit_index }
                         );
 
-                        self.log.commit(commit_index);
-                        // todo: 
-                        // send all uncommited entries to state_machine
+                        for i in (self.log.commit_index)..=commit_index {
+                            if let Some(entry) = self.log.entries.get(i) {
+                                self.state_tx.send(entry.clone()).unwrap();
+                                self.log.commit(entry.index);
+                            }
+                        }
                     };
 
                     let leader = match msg.from {
