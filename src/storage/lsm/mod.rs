@@ -45,19 +45,29 @@ pub struct Lsm {
 impl Lsm {
     // todo:
     // - implement WAL recovery 
-    pub fn new(path: PathBuf, recover_mode: bool, memtable_size: usize) 
+    pub fn new(path: PathBuf,memtable_size: usize) 
         -> Result<Self, std::io::Error> {
-            let memtable = memtable::Memtable::new();
-            // todo:
-            // remove recover_mode flag, and try to recover by default
-            let wal = if recover_mode { 
-                Lsm::search_for_wal_file(&path)?
-            } else { 
-                let timestamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_micros();
-                wal::WAL::new(&path, timestamp)? 
+            let mut memtable = memtable::Memtable::new();
+            let wal = match Lsm::search_for_wal_file(&path) {
+                Ok(wal) => { 
+                    let wal_iterator = wal::WALIterator::new(&wal.path)?.into_iter();
+                    for entry in wal_iterator {
+                        println!("wal entry {entry:?}");
+                        if entry.deleted == true {
+                            memtable.delete(&entry.key, entry.timestamp);
+                        } else {
+                            memtable.insert(&entry.key, &entry.value.unwrap(), entry.timestamp);
+                        }
+                    }
+                    wal 
+                },
+                Err(..) => {
+                    let timestamp = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_micros();
+                    wal::WAL::new(&path, timestamp)? 
+                }
             };
             let tables = Lsm::search_for_table_files(&path)?;
 

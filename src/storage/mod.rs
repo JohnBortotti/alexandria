@@ -45,7 +45,7 @@ impl Engine {
                     if path.is_dir() {
                         if let Some(folder_name) = path.clone().file_name() {
                             if let Some(folder_name_str) = folder_name.to_str() {
-                                let collection = lsm::Lsm::new(path, false, 128).unwrap();
+                                let collection = lsm::Lsm::new(path, 128).unwrap();
                                 collections.insert(folder_name_str.to_string(), collection);
                             }
                         }
@@ -68,7 +68,7 @@ impl Engine {
         create_dir_all(&path)?;
 
         println!("creating collection at: {:?}", path);
-        let collection = lsm::Lsm::new(path, false, 128).unwrap();
+        let collection = lsm::Lsm::new(path, 128).unwrap();
 
         self.collections.insert(collection_name.to_string(), collection);
 

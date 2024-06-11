@@ -1,7 +1,7 @@
 use super::TableEntry;
 
 use std::{
-    io::{BufWriter, Write},
+    io::{BufWriter, Write, BufReader, Read},
     fs::{File, OpenOptions},
     path::{Path, PathBuf}
 };
@@ -44,7 +44,7 @@ impl WAL {
         self.file.write_all(&(entry.deleted as u8).to_le_bytes())?;
         self.file.write_all(&entry.key.len().to_le_bytes())?;
         self.file.write_all(&entry.value.clone().unwrap().len().to_le_bytes())?;
-        self.file.write_all(&entry.key)?;
+        self.file.write_all(&(entry.key))?;
         self.file.write_all(&entry.value.unwrap())?;
         self.file.write_all(&entry.timestamp.to_le_bytes())?;
 
@@ -52,3 +52,68 @@ impl WAL {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+pub struct WALIterator {
+    reader: BufReader<File>
+}
+
+impl WALIterator {
+    pub fn new(path: &Path) -> Result<Self, std::io::Error> {
+        let options = OpenOptions::new().read(true).open(&path)?;
+        let reader = BufReader::new(options);
+
+        Ok(Self { reader })
+    }
+}
+
+impl Iterator for WALIterator {
+    type Item = TableEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut deleted_buf = [0; 1];
+        if self.reader.read_exact(&mut deleted_buf).is_err() {
+            return None
+        };
+        let deleted = u8::from_be_bytes(deleted_buf) > 0;
+
+        let mut key_len_buf = [0; 8];
+        if self.reader.read_exact(&mut key_len_buf).is_err() {
+            return None
+        };
+        let key_len = usize::from_le_bytes(key_len_buf);
+
+        let mut value_len_buf = [0; 8];
+        if self.reader.read_exact(&mut value_len_buf).is_err() {
+            return None
+        };
+        let value_len = usize::from_le_bytes(value_len_buf);
+
+        let mut key_buf = vec![0; key_len];
+        if self.reader.read_exact(&mut key_buf).is_err() {
+            return None
+        };
+
+        let mut value_buf = vec![0; value_len];
+        if self.reader.read_exact(&mut value_buf).is_err() {
+            return None
+        };
+        let value = if !deleted { Some(value_buf) } else { None };
+
+        let mut timestamp_buf = [0; 16];
+        if self.reader.read_exact(&mut timestamp_buf).is_err() {
+            return None
+        };
+        let timestamp = u128::from_le_bytes(timestamp_buf);
+
+        Some(Self::Item {
+            deleted,
+            key: key_buf,
+            value,
+            timestamp
+        })
+    }
+
+}
+
+
