@@ -60,16 +60,12 @@ impl Engine {
         }
     }
 
-    // todo:
-    // replicate new collection on raft nodes
     fn new_collection(&mut self, collection_name: &str) -> Result<(), std::io::Error> {
         let mut path = PathBuf::from(&self.root_path);
         path.push(collection_name);
         create_dir_all(&path)?;
 
-        println!("creating collection at: {:?}", path);
         let collection = lsm::Lsm::new(path, 128).unwrap();
-
         self.collections.insert(collection_name.to_string(), collection);
 
         Ok(())
@@ -116,6 +112,8 @@ impl Engine {
                 deleted: false,
                 key: query[1].into(),
                 value: Some(query[2].into()),
+                // todo:
+                // generate a valid timestamp, and add the field updated_at
                 timestamp: 1
             };
 

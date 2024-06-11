@@ -52,7 +52,6 @@ impl Lsm {
                 Ok(wal) => { 
                     let wal_iterator = wal::WALIterator::new(&wal.path)?.into_iter();
                     for entry in wal_iterator {
-                        println!("wal entry {entry:?}");
                         if entry.deleted == true {
                             memtable.delete(&entry.key, entry.timestamp);
                         } else {
@@ -114,11 +113,11 @@ impl Lsm {
                 return Ok(Some(entry.clone()));
             };
 
-            for table in self.tables.iter().rev() {
-                let metadata_file = BufReader::new(
-                    File::open(self.path.clone().join(table.timestamp.to_string() + ".sst_meta"))?
-                    );
-            }
+            // for table in self.tables.iter().rev() {
+            //     let metadata_file = BufReader::new(
+            //         File::open(self.path.clone().join(table.timestamp.to_string() + ".sst_meta"))?
+            //         );
+            // }
             Ok(None)
         }
 

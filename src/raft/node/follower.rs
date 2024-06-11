@@ -2,7 +2,7 @@ use super::super::{
     message::Address, message::Event, message::Message, 
     logging::{log_raft, RaftLogType}
 };
-use super::{candidate::Candidate, Node, Role};
+use super::{candidate::Candidate, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 
 pub struct Follower {
@@ -47,6 +47,17 @@ impl Role<Follower> {
                             log_raft(
                                 RaftLogType::LogAppend { entry: entries.clone() }
                             );
+
+                            // removing request_id
+                            let entries: Vec<Entry> = entries.iter().map(|entry| {
+                                Entry {
+                                    request_id: None,
+                                    command: entry.command.clone(),
+                                    index: entry.index,
+                                    term: entry.term
+                                }
+                            }).collect();
+
                             self.log.append(entries)
                         }
                     };
@@ -115,6 +126,7 @@ impl Role<Follower> {
                 }
             },
             Event::Vote { voted_for: _ } => {},
+            Event::StateResponse { .. } => {},
             _ => { 
                 log_raft(
                     RaftLogType::Error 
