@@ -140,11 +140,8 @@ impl Server {
                             panic!("message incorrect");
                         };
 
-                        // todo: create the message from scratch,
-                        // todo: change the outbound_node_tx channel since the message is not a
-                        // raft_message packet
-                        // set the payload and add the request_id
                         let user_command = format!("{}\n", req_body[1]);
+                        // todo: term can be Option<term>
                         let msg = message::Message::new(
                             1,
                             message::Address::Client,

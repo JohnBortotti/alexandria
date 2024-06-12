@@ -1,6 +1,7 @@
 mod lsm;
 
 use std::{path::Path, collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
+use serde::{Deserialize, Serialize};
 use lsm::TableEntry;
 
 /*
@@ -21,6 +22,12 @@ use lsm::TableEntry;
  * 4. data lock model:
  *      ???
 */
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum Command {
+    List,
+    GetEntry(String, String),
+    Write { collection: String, key: String, value: String }
+}
 
 // todo:
 // - choose the communication way

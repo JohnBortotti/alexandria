@@ -126,12 +126,51 @@ impl Role<Follower> {
                 }
             },
             Event::Vote { voted_for: _ } => {},
-            Event::StateResponse { .. } => {},
+            Event::StateResponse { request_id, result } => {
+                if let Some(request_id) = request_id {
+                    let res = match result {
+                        Ok(r) => r,
+                        Err(_) => "error on state_machine".to_string()
+                    };
+                    self.outbound_tx.send((request_id, res)).unwrap();
+
+                    return Ok(self.into())
+                };
+            },
             // todo:
             // - enable read queries to be executed by followers (this will improve performance
             // with an eventual consistency tradeoff)
             // - if the query is write, then the request should be redirected to the leader
-            Event::ClientRequest { request_id, command } => {}
+            Event::ClientRequest { request_id, command } => {
+                let _command: Vec<&str> = command
+                    .strip_suffix("\r\n")
+                    .or(command.strip_suffix("\n"))
+                    .unwrap_or(&command)
+                    .split(" ").collect();
+
+                if _command[0] == "list" {
+                    let entry = Entry { 
+                        request_id: Some(request_id),
+                        index: self.log.last_index+1,
+                        term: self.log.last_term, 
+                        command 
+                    };
+
+                    self.state_tx.send(entry.clone()).unwrap();
+                }
+                else if _command[1] == "get" {
+                    let entry = Entry { 
+                        request_id: Some(request_id),
+                        index: self.log.last_index+1,
+                        term: self.log.last_term, 
+                        command 
+                    };
+
+                    self.state_tx.send(entry.clone()).unwrap();
+                } else {
+                    println!("another command, follower must redirect to leader")
+                }
+            }
             _ => { 
                 log_raft(
                     RaftLogType::Error 

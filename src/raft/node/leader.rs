@@ -109,8 +109,6 @@ impl Role<Leader> {
 
                     return Ok(self.into())
                 };
-
-                return Ok(self.into())
             },
             Event::AckEntries { index } => {
                 let addr = match msg.from {
