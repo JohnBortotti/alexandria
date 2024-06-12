@@ -96,6 +96,9 @@ impl Role<Leader> {
             | Event::AppendEntries {..} 
             | Event::Vote {..}
             | Event::RequestVote {..}  => {},
+            // todo:
+            // - since a "read" command does not modify the internal state, only append new
+            // entries on "write" commands
             | Event::StateResponse { request_id, result } => {
                 if let Some(request_id) = request_id {
                     let res = match result {
@@ -128,9 +131,8 @@ impl Role<Leader> {
                     );
 
                     // todo:
-                    // commit first on log or state_machine?
-                    // currently the state_machine can retun an error 
-                    // and the log will commit the entry anyway
+                    // await for state response then if is safe commit to log,
+                    // this will avoid broadcasting errors
                     self.log.commit(self.log.last_index);
                     let entry = self.log.entries.last().unwrap();
                     self.state_tx.send(entry.clone()).unwrap();

@@ -127,6 +127,11 @@ impl Role<Follower> {
             },
             Event::Vote { voted_for: _ } => {},
             Event::StateResponse { .. } => {},
+            // todo:
+            // - enable read queries to be executed by followers (this will improve performance
+            // with an eventual consistency tradeoff)
+            // - if the query is write, then the request should be redirected to the leader
+            Event::ClientRequest { request_id, command } => {}
             _ => { 
                 log_raft(
                     RaftLogType::Error 
