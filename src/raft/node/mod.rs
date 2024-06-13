@@ -5,6 +5,8 @@ use super::{
     logging::{log_raft, RaftLogType}
 };
 use crate::utils::config::CONFIG;
+use crate::raft::server::NodeResponse;
+
 use tokio::sync::mpsc;
 use self::log::Log;
 
@@ -25,7 +27,7 @@ impl Node {
         peers: Vec<String>,
         log: Log,
         node_tx: mpsc::UnboundedSender<Message>,
-        outbound_tx: mpsc::UnboundedSender<(u64, String)>
+        outbound_tx: mpsc::UnboundedSender<NodeResponse>
     ) -> Self {
         let (state_tx, state_rx) = tokio::sync::mpsc::unbounded_channel();
         let state_machine = StateMachine::new(state_rx, node_tx.clone());
@@ -77,7 +79,7 @@ pub struct Role<T> {
     pub role: T,
     pub node_tx: mpsc::UnboundedSender<Message>,
     pub state_tx: mpsc::UnboundedSender<Entry>,
-    pub outbound_tx: mpsc::UnboundedSender<(u64, String)>
+    pub outbound_tx: mpsc::UnboundedSender<NodeResponse>
 }
 
 impl<R> Role<R> {

@@ -22,11 +22,22 @@ use tokio::{
 use tokio_stream::wrappers::{TcpListenerStream, UnboundedReceiverStream};
 use tokio_stream::StreamExt as _;
 
+pub enum NodeResponseType {
+    Redirect { address: String },
+    Result { result: String },
+    NoLeader
+}
+
+pub struct NodeResponse {
+    pub request_id: u64,
+    pub response_type: NodeResponseType
+}
+
 pub struct Server {
     node: node::Node,
     peers: Vec<String>,
     node_rx: UnboundedReceiver<message::Message>,
-    outbound_rx: UnboundedReceiver<(u64, String)>,
+    outbound_rx: UnboundedReceiver<NodeResponse>,
     connection_table: Arc<Mutex<HashMap<u64, tokio::net::TcpStream>>>,
 }
 
@@ -58,26 +69,36 @@ impl Server {
 /*
  * Isn't this overcomplex?
  *
- * 1. client sends request to port 5000
+ * 1. user sends TCP request to port 5000
  *
- * 2. receiving_outbound_tcp will handle this request:
- *   - register the socket on connection_table
- *   - send the message to node_inbound_tx
+ * 2. receiving_outbound_tcp() will handle this request:
+ *   - register the socket on connection_table <HashMap<u64, TcpStream>>
+ *   - send the message to node_inbound_tx <raft::Message>
  *
  * 3. this message will be handled by event_loop:
- *   - event loop will execute the message on node.step()
+ *   - event loop will send the Message to node via on node.step(msg)
  *   - node will handle the message:
- *      - ClientRequest will append a new log entry
- *      - leader will replicate this entry and then commit with state_tx.send(entry)
- *      - state will run the query and commit the result on node_tx.send(StateResult..)
- *      - node will handle the StateResult message, verify and send on outbound_tx channel
- *   - the event loop will then handle the response_rx cahnnel, match the request_id with current
- *      open requests and return the result over tcp
+ *      - if the node is a leader:
+ *        - append the command on log entry
+ *        - replicate this entry and then commit with state_tx.send(entry)
+ *        - state will run the query and return the result on node_tx.send(raft::StateResponse)
+ *        - the node will handle the StateResponse and return to outbound_tx channel
+ *        - the event loop will receive this message via response_rx, match the request_id with
+ *          open requests and answer the user request
+ *      - if the node is a follower:
+ *        - if the command is "READ":
+ *          - send the command to run on state_machine
+ *          - state will run the query and return the result on node_tx.send(raft::StateResponse)
+ *          - the node will handle the StateResponse and return to outbound_tx channel
+ *        - if the command is "WRITE":
+ *          - return a redirect message to outbound_tx channel
+ *          - the event loop will receive this message and return a redirect response
+ *
 */
     async fn event_loop(
         mut node: node::Node,
         tcp_inbound_rx: UnboundedReceiver<message::Message>,
-        response_rx: UnboundedReceiver<(u64, String)>,
+        response_rx: UnboundedReceiver<NodeResponse>,
         connection_table: Arc<Mutex<HashMap<u64, tokio::net::TcpStream>>>,
         ticks: u64,
     ) -> Result<(), &'static str> {
@@ -92,27 +113,49 @@ impl Server {
                 Some(response) = response_rx.next() => {
                             let socket = {
                                 let mut map = connection_table.lock().unwrap();
-                                map.remove(&response.0)
+                                map.remove(&response.request_id)
                             };
 
-                            let status_line = "HTTP/1.1 200 OK\r\n";
-                            let content_length = format!("Content-Length: {}\r\n", response.1.len());
-                            let headers = "Content-Type: text/plain\r\n\r\n";
-                            let response = 
-                                format!("{}{}{}{}",
-                                        status_line, content_length, headers, response.1);
+                            match response.response_type {
+                                NodeResponseType::Redirect { address } => {
+                                        let status_line = "HTTP/1.1 307 Temporary Redirect\r\n";
+                                        let headers = format!("Location: http://{}\r\nContent-Length: 0\r\n\r\n", address);
+                                        let response = format!("{}{}", status_line, headers);
 
-                            if let Some(mut socket) = socket {
-                                if let Err(err) = 
-                                    socket.write_all(response.as_bytes()).await {
-                                    eprintln!("Failed to write response to socket: {:?}", err);
-                                }
+                                        println!("{response}");
+                                        
+                                        if let Some(mut socket) = socket {
+                                            if let Err(err) = 
+                                                socket.write_all(response.as_bytes()).await {
+                                                    eprintln!("Failed to write response to socket: {:?}", err);
+                                                }
+                                        }
+
+                                },
+                                NodeResponseType::Result { result } => {
+                                    let status_line = "HTTP/1.1 200 OK\r\n";
+                                    let content_length = format!("Content-Length: {}\r\n", result.len());
+                                    let headers = "Content-Type: text/plain\r\n\r\n";
+                                    let response = format!("{}{}{}{}", status_line, content_length, headers, result);
+
+                                    println!("{response:?}");
+
+                                    if let Some(mut socket) = socket {
+                                        if let Err(err) = 
+                                            socket.write_all(response.as_bytes()).await {
+                                                eprintln!("Failed to write response to socket: {:?}", err);
+                                            }
+                                    }
+
+                                },
+                                NodeResponseType::NoLeader => todo!()
                             }
                 }
             }
         }
     }
 
+    // todo: this is the place that i can parse the command and validate it
     async fn receiving_outbound_tcp(
         outbound_tcp_listener: TcpListener,
         tcp_inbound_tx: UnboundedSender<message::Message>,
@@ -137,6 +180,9 @@ impl Server {
                             req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                         if req_body.get(1).is_none() {
+                            // todo:
+                            // no panic!
+                            println!("{req_body:?}");
                             panic!("message incorrect");
                         };
 

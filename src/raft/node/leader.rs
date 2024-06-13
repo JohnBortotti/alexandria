@@ -4,6 +4,7 @@ use super::super::{
     logging::{log_raft, RaftLogType}
 };
 use std::collections::HashMap;
+use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Leader {
     pub peer_last_index: HashMap<String, usize>,
@@ -101,11 +102,17 @@ impl Role<Leader> {
             // entries on "write" commands
             | Event::StateResponse { request_id, result } => {
                 if let Some(request_id) = request_id {
-                    let res = match result {
+                    let result = match result {
                         Ok(r) => r,
                         Err(_) => "error on state_machine".to_string()
                     };
-                    self.outbound_tx.send((request_id, res)).unwrap();
+
+                    let response = NodeResponse {
+                        request_id,
+                        response_type: NodeResponseType::Result { result }
+                    };
+
+                    self.outbound_tx.send(response).unwrap();
 
                     return Ok(self.into())
                 };

@@ -4,6 +4,7 @@ use super::super::{
 };
 use super::{candidate::Candidate, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
+use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Follower {
     pub leader: Option<String>,
@@ -128,11 +129,17 @@ impl Role<Follower> {
             Event::Vote { voted_for: _ } => {},
             Event::StateResponse { request_id, result } => {
                 if let Some(request_id) = request_id {
-                    let res = match result {
+                    let result = match result {
                         Ok(r) => r,
                         Err(_) => "error on state_machine".to_string()
                     };
-                    self.outbound_tx.send((request_id, res)).unwrap();
+
+                    let response = NodeResponse {
+                        request_id,
+                        response_type: NodeResponseType::Result { result }
+                    };
+
+                    self.outbound_tx.send(response).unwrap();
 
                     return Ok(self.into())
                 };
@@ -168,7 +175,25 @@ impl Role<Follower> {
 
                     self.state_tx.send(entry.clone()).unwrap();
                 } else {
-                    println!("another command, follower must redirect to leader")
+                    match self.role.leader {
+                        None => {
+                            let response = NodeResponse {
+                                request_id,
+                                response_type: NodeResponseType::NoLeader
+                            };
+                            self.outbound_tx.send(response).unwrap();
+                        },
+                        Some(ref leader) => {
+                            let _addr: Vec<&str> = leader.split(":").collect();
+                            // todo: fix this gambiarra
+                            let _addr = format!("{}:5000", _addr[0]);
+                            let response = NodeResponse {
+                                request_id,
+                                response_type: NodeResponseType::Redirect { address: _addr }
+                            };
+                            self.outbound_tx.send(response).unwrap();
+                        }
+                    }
                 }
             }
             _ => { 
