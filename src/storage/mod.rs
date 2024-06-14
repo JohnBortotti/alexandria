@@ -97,6 +97,11 @@ impl Engine {
                 collection: query[1].into(),
                 key: query[2].into(),
             })
+        } else if query[0] == "delete" {
+            return Ok(Command::Delete{
+                collection: query[1].into(),
+                key: query[2].into()
+            })
         } else {
             return Ok(Command::CreateEntry {
                 collection: query[0].into(),
@@ -167,7 +172,25 @@ impl Engine {
                     }
                 }
             },
-            Command::Delete { collection, key } => todo!("delete entry not implemented")
+            Command::Delete { collection, key } => {
+                let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
+                    Some(collection) => collection,
+                    None => todo!("invalid collection")
+                };
+
+                let entry = lsm::TableEntry {
+                    deleted: true,
+                    key: key.clone().into(),
+                    value: None,
+                    // todo:
+                    // generate a valid timestamp, and add the field updated_at
+                    timestamp: 1
+                };
+
+                collection.write(entry).unwrap();
+
+                Ok(Some(format!("key '{}' deleted", key)))
+            }
         }
     }
 }

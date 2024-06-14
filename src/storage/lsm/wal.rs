@@ -41,11 +41,17 @@ impl WAL {
     }
 
     pub fn append(&mut self, entry: TableEntry) -> Result<(), std::io::Error> {
+        let (value_len, value) = match entry.value {
+            None => (0, vec!()),
+            Some(val) => (val.len(), val)
+        };
+
+        self.file.write_all(&entry.timestamp.to_le_bytes())?;
         self.file.write_all(&(entry.deleted as u8).to_le_bytes())?;
         self.file.write_all(&entry.key.len().to_le_bytes())?;
-        self.file.write_all(&entry.value.clone().unwrap().len().to_le_bytes())?;
+        self.file.write_all(&value_len.to_le_bytes())?;
         self.file.write_all(&(entry.key))?;
-        self.file.write_all(&entry.value.unwrap())?;
+        self.file.write_all(&value)?;
         self.file.write_all(&entry.timestamp.to_le_bytes())?;
 
         self.flush()?;
