@@ -24,9 +24,12 @@ use lsm::TableEntry;
 */
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Command {
-    List,
-    GetEntry(String, String),
-    Write { collection: String, key: String, value: String }
+    ListCollections,
+    CreateCollection { collection: String },
+    GetEntries { collection: String },
+    GetEntry { collection: String, key: String },
+    CreateEntry { collection: String, key: String, value: String },
+    Delete { collection: String, key: String }
 }
 
 // todo:
@@ -40,7 +43,7 @@ pub struct Engine {
 impl Engine {
     pub fn new() -> Self {
         // todo:
-        // - config path, recover_mode and max_size
+        // - config path and max memtable size
         let root_path = PathBuf::from("./db-data");
         let mut collections = HashMap::new();
 
@@ -78,9 +81,7 @@ impl Engine {
         Ok(())
     }
 
-    // todo:
-    // parse query into a valid command
-    pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
+    fn parse_string_to_command(query: String) -> Result<Command, std::io::Error> {
         let query: Vec<&str> = query
             .strip_suffix("\r\n")
             .or(query.strip_suffix("\n"))
@@ -88,53 +89,85 @@ impl Engine {
             .split(" ").collect();
 
         if query[0] == "list" {
-            return Ok(Some(format!("collections: {:?}", self.collections.keys().collect::<Vec<&String>>())))
-        }
-
-        if query[0] == "create" {
-            self.new_collection(query[1])?;
-            return Ok(Some(format!("collection created: {:?}", query[1])))
-        }
-
-        let collection: &mut lsm::Lsm = match self.collections.get_mut(query[0]) {
-            Some(collection) => collection,
-            None => return Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("collection not found: {}", query[0])))
-        };
-
-        if query[1] == "get" {
-            let key = query[2];
-
-            match collection.search(&Vec::try_from(key).unwrap()) {
-                Err(msg) => Err(msg),
-                Ok(res) => match res {
-                    None => Ok(None),
-                    Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
-                                                   String::from_utf8(entry.key).unwrap(),
-                                                   String::from_utf8(entry.value.unwrap()).unwrap(),
-                                                   entry.timestamp, entry.deleted))),
-                }
-            }
+            return Ok(Command::ListCollections);
+        } else if query[0] == "create" {
+            return Ok(Command::CreateCollection { collection: query[1].to_string() })
+        } else if query[0] == "get" {
+            return Ok(Command::GetEntry { 
+                collection: query[1].into(),
+                key: query[2].into(),
+            })
         } else {
-            let entry = lsm::TableEntry {
-                deleted: false,
+            return Ok(Command::CreateEntry {
+                collection: query[0].into(),
                 key: query[1].into(),
-                value: Some(query[2].into()),
-                // todo:
-                // generate a valid timestamp, and add the field updated_at
-                timestamp: 1
-            };
+                value: query[2].into(),
+            })
+        }
+    }
 
-            collection.write(entry).unwrap();
-            match collection.search(&Vec::try_from(query[1]).unwrap()) {
-                Err(msg) => Err(msg),
-                Ok(res) => match res {
-                    None => Ok(None),
-                    Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
-                                                   String::from_utf8(entry.key).unwrap(),
-                                                   String::from_utf8(entry.value.unwrap()).unwrap(),
-                                                   entry.timestamp, entry.deleted))),
+    // todo:
+    // parse query into a valid command
+    pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
+        let command = Engine::parse_string_to_command(query).unwrap();
+
+        match command {
+            Command::ListCollections => {
+                return Ok(Some(
+                        format!("collections: {:?}",
+                                self.collections.keys().collect::<Vec<&String>>())
+                        ))
+            },
+            Command::CreateCollection { collection } => {
+                    self.new_collection(&collection)?;
+                    return Ok(Some(format!("collection created: {:?}", collection)))
+            },
+            Command::GetEntries { collection } => todo!("get entries no implemented"),
+            Command::GetEntry { collection, key } => {
+                let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
+                    Some(collection) => collection,
+                    None => todo!("invalid collection")
+                };
+                match collection.search(&Vec::try_from(key).unwrap()) {
+                    Err(msg) => Err(msg),
+                    Ok(res) => match res {
+                        None => Ok(None),
+                        // todo: improve here
+                        Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
+                                                       String::from_utf8(entry.key).unwrap(),
+                                                       String::from_utf8(entry.value.unwrap()).unwrap(),
+                                                       entry.timestamp, entry.deleted))),
+                    }
                 }
-            }
+            },
+            Command::CreateEntry { collection, key, value } => {
+                let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
+                    Some(collection) => collection,
+                    None => todo!("invalid collection")
+                };
+
+                let entry = lsm::TableEntry {
+                    deleted: false,
+                    key: key.clone().into(),
+                    value: Some(value.into()),
+                    // todo:
+                    // generate a valid timestamp, and add the field updated_at
+                    timestamp: 1
+                };
+
+                collection.write(entry).unwrap();
+                match collection.search(&Vec::try_from(key).unwrap()) {
+                    Err(msg) => Err(msg),
+                    Ok(res) => match res {
+                        None => Ok(None),
+                        Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
+                                                       String::from_utf8(entry.key).unwrap(),
+                                                       String::from_utf8(entry.value.unwrap()).unwrap(),
+                                                       entry.timestamp, entry.deleted))),
+                    }
+                }
+            },
+            Command::Delete { collection, key } => todo!("delete entry not implemented")
         }
     }
 }

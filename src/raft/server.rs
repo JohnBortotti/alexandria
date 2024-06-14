@@ -122,8 +122,6 @@ impl Server {
                                         let headers = format!("Location: http://{}\r\nContent-Length: 0\r\n\r\n", address);
                                         let response = format!("{}{}", status_line, headers);
 
-                                        println!("{response}");
-                                        
                                         if let Some(mut socket) = socket {
                                             if let Err(err) = 
                                                 socket.write_all(response.as_bytes()).await {
@@ -137,8 +135,6 @@ impl Server {
                                     let content_length = format!("Content-Length: {}\r\n", result.len());
                                     let headers = "Content-Type: text/plain\r\n\r\n";
                                     let response = format!("{}{}{}{}", status_line, content_length, headers, result);
-
-                                    println!("{response:?}");
 
                                     if let Some(mut socket) = socket {
                                         if let Err(err) = 
@@ -155,7 +151,6 @@ impl Server {
         }
     }
 
-    // todo: this is the place that i can parse the command and validate it
     async fn receiving_outbound_tcp(
         outbound_tcp_listener: TcpListener,
         tcp_inbound_tx: UnboundedSender<message::Message>,
@@ -164,7 +159,7 @@ impl Server {
         let mut listener = TcpListenerStream::new(outbound_tcp_listener);
         let mut request_id: u64 = 0;
 
-        while let Some(socket) = listener.try_next().await? {
+        while let Some(mut socket) = listener.try_next().await? {
             let tcp_inbound_tx = tcp_inbound_tx.clone();
             let connection_table = Arc::clone(&connection_table);
             request_id += 1;
@@ -176,20 +171,29 @@ impl Server {
                 match socket.try_read(&mut buffer) {
                     Ok(bytes_read) => {
                         let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
+
                         let req_body: Vec<&str> =
                             req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                         if req_body.get(1).is_none() {
-                            // todo:
-                            // no panic!
-                            println!("{req_body:?}");
-                            panic!("message incorrect");
+                            let status_line = "HTTP/1.1 400 Bad Request\r\n";
+                            let headers = "Content-Type: text/plain\r\n\r\n";
+                            let body = "Empty request, please provide a valid command";
+                            let res = format!("{}{}{}", status_line, headers, body);
+
+                            if let Err(err) = 
+                                socket.write_all(res.as_bytes()).await {
+                                    eprintln!("Failed to write response to socket: {:?}", err);
+                                }
+                            
+                            return
                         };
 
+                        // todo: parse command
                         let user_command = format!("{}\n", req_body[1]);
-                        // todo: term can be Option<term>
                         let msg = message::Message::new(
-                            1,
+                            // term is ignored here so we just set it 0
+                            0,
                             message::Address::Client,
                             message::Address::Peer("test".to_string()),
                             Event::ClientRequest { 
