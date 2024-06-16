@@ -4,3 +4,7 @@ raft:
   candidate_election_timeout: 5
   candidate_election_timeout_rand: 6
   leader_idle_timeout: 4
+storage:
+  max_memtable_size: 24
+  data_path: "./db-data"
+

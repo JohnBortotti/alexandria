@@ -42,8 +42,6 @@ pub struct Lsm {
 }
 
 impl Lsm {
-    // todo:
-    // - implement WAL recovery 
     pub fn new(path: PathBuf,memtable_size: usize) 
         -> Result<Self, std::io::Error> {
             let mut memtable = memtable::Memtable::new();
@@ -108,6 +106,7 @@ impl Lsm {
     // todo:
     // [ ] implement Bloom filter
     // [ ] create integration test to test storage engine
+    // [ ] when peers reset they forget sstables
     pub fn search(&self, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {

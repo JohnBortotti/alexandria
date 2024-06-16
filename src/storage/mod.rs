@@ -3,6 +3,7 @@ mod lsm;
 use std::{collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
 use chrono::{Utc, DateTime};
 use serde::{Deserialize, Serialize};
+use crate::utils::config::CONFIG;
 
 /*
  *
@@ -42,9 +43,7 @@ pub struct Engine {
 
 impl Engine {
     pub fn new() -> Self {
-        // todo:
-        // - config path and max memtable size
-        let root_path = PathBuf::from("./db-data");
+        let root_path = PathBuf::from(CONFIG.storage.data_path.clone());
         let mut collections = HashMap::new();
 
         // scan root path looking for folders (each folder is a collection)
@@ -55,7 +54,9 @@ impl Engine {
                     if path.is_dir() {
                         if let Some(folder_name) = path.clone().file_name() {
                             if let Some(folder_name_str) = folder_name.to_str() {
-                                let collection = lsm::Lsm::new(path, 64).unwrap();
+                                let collection = lsm::Lsm::new(
+                                    path,
+                                    CONFIG.storage.max_memtable_size).unwrap();
                                 collections.insert(folder_name_str.to_string(), collection);
                             }
                         }
@@ -75,8 +76,7 @@ impl Engine {
         path.push(collection_name);
         create_dir_all(&path)?;
 
-        // todo: set memtable_max from config file
-        let collection = lsm::Lsm::new(path, 128).unwrap();
+        let collection = lsm::Lsm::new(path, CONFIG.storage.max_memtable_size).unwrap();
         self.collections.insert(collection_name.to_string(), collection);
 
         Ok(())
