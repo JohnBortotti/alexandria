@@ -37,7 +37,7 @@ impl Node {
             id: id.to_string(),
             peers,
             log,
-            role: follower::Follower::new(None, None, CONFIG.raft.leader_seen_timeout),
+            role: follower::Follower::new(None, CONFIG.raft.leader_seen_timeout),
             state_tx,
             node_tx,
             outbound_tx

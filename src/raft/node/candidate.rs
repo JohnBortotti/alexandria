@@ -54,7 +54,6 @@ impl Role<Candidate> {
                     Ok(self
                         .become_role(Follower::new(
                             Some(address),
-                            None,
                             CONFIG.raft.leader_seen_timeout,
                         ))
                         .into())
@@ -94,7 +93,6 @@ impl Role<Candidate> {
                     Ok(self
                         .become_role(Follower::new(
                             Some(from),
-                            None,
                             CONFIG.raft.leader_seen_timeout,
                         ))
                         .into())

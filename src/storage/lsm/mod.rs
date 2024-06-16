@@ -4,8 +4,7 @@ mod sstable;
 
 
 use std::{
-    io::BufReader,
-    fs::{File, read_dir, remove_file},
+    fs::{read_dir, remove_file},
     path::Path,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH}

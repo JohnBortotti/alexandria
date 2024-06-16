@@ -2,25 +2,24 @@ use super::super::{
     message::Address, message::Event, message::Message, 
     logging::{log_raft, RaftLogType}
 };
+use tokio::sync::mpsc::unbounded_channel;
 use super::{candidate::Candidate, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Follower {
     pub leader: Option<String>,
-    voted: Option<String>,
     leader_seen_ticks: u64,
     leader_seen_timeout: u64,
 }
 
 impl Follower {
-    pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
+    pub fn new(leader: Option<String>, leader_seen_timeout: u64) -> Self {
         log_raft(
             RaftLogType::NewRole { new_role: "follower".to_string() }
         );
         Self {
             leader,
-            voted,
             leader_seen_ticks: 0,
             leader_seen_timeout,
         }
@@ -260,7 +259,6 @@ impl Role<Follower> {
 
         let follower = self.become_role(Follower::new(
             Some(address),
-            None,
             CONFIG.raft.leader_seen_timeout,
         ));
         follower.into()
@@ -290,7 +288,7 @@ mod tests {
             node_tx,
             state_tx,
             outbound_tx,
-            role: Follower::new(Some("a".into()), None, 2),
+            role: Follower::new(Some("a".into()), 2),
         };
 
         (follower, node_rx, state_rx)
@@ -399,7 +397,7 @@ mod tests {
 
     #[tokio::test]
     async fn follower_must_append_logs_then_update_commit_index() {
-        let (mut follower, _node_rx, _) = setup();
+        let (mut follower, _node_rx, _state_rx) = setup();
         follower.role.leader = Some(String::from("a"));
 
         let entries = vec!(
@@ -420,7 +418,7 @@ mod tests {
             term: 1,
             from: Address::Peer("a".to_string()),
             to: Address::Broadcast,
-            event: Event::AppendEntries { entries: Some(entries), commit_index: 0 }
+            event: Event::AppendEntries { entries: Some(entries), commit_index: 1 }
         };
         let follower = follower.step(append_entries).unwrap();
 
@@ -436,7 +434,7 @@ mod tests {
                 assert_eq!(follower.log.last_term, 1);
                 assert_eq!(follower.log.entries[0].command, "command1");
                 assert_eq!(follower.log.entries[1].command, "command2");
-                assert_eq!(follower.log.commit_index, 1);
+                assert_eq!(follower.log.commit_index, 2);
             },
             _ => panic!("Expected node to be Follower")
         };
