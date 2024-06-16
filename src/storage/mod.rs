@@ -1,8 +1,8 @@
 mod lsm;
 
-use std::{path::Path, collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
+use std::{collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
+use chrono::{Utc, DateTime};
 use serde::{Deserialize, Serialize};
-use lsm::TableEntry;
 
 /*
  *
@@ -81,40 +81,81 @@ impl Engine {
         Ok(())
     }
 
+    // create a proper error struct
     fn parse_string_to_command(query: String) -> Result<Command, std::io::Error> {
-        let query: Vec<&str> = query
+        let _query: Vec<&str> = query
             .strip_suffix("\r\n")
             .or(query.strip_suffix("\n"))
             .unwrap_or(&query)
             .split(" ").collect();
 
-        if query[0] == "list" {
-            return Ok(Command::ListCollections);
-        } else if query[0] == "create" {
-            return Ok(Command::CreateCollection { collection: query[1].to_string() })
-        } else if query[0] == "get" {
-            return Ok(Command::GetEntry { 
-                collection: query[1].into(),
-                key: query[2].into(),
-            })
-        } else if query[0] == "delete" {
-            return Ok(Command::Delete{
-                collection: query[1].into(),
-                key: query[2].into()
-            })
-        } else {
-            return Ok(Command::CreateEntry {
-                collection: query[0].into(),
-                key: query[1].into(),
-                value: query[2].into(),
-            })
+        match _query.get(0) {
+            Some(&"list") => {
+                return Ok(Command::ListCollections);
+            },
+            Some(&"create") => {
+                let collection = match _query.get(1) {
+                    Some(value) => value.to_string(),
+                    None => return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "Invalid command: please provide the collection name")
+                                      )
+                };
+                return Ok(Command::CreateCollection { collection })
+            }
+            Some(&"get") => {
+                let (collection, key) = match (_query.get(1), _query.get(2)) {
+                    (Some(collection), Some(key)) => (collection.to_string(), key.to_string()),
+                    _ =>  {
+                        return Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                "Invalid command: please provide collection name and key")
+                                  )
+                    }
+                };
+                return Ok(Command::GetEntry { collection, key })
+            }
+            Some(&"write") => {
+                let (collection, key, value) = match (_query.get(1), _query.get(2), _query.get(3)) {
+                    (Some(collection), Some(key), Some(value)) => (collection.to_string(), key.to_string(), value.to_string()),
+                    _ =>  {
+                        return Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                "Invalid command: please provide collection name, key and value")
+                                  )
+                    }
+
+                };
+                return Ok(Command::CreateEntry { collection, key, value })
+            }
+            Some(&"delete") => {
+                let (collection, key) = match (_query.get(1), _query.get(2)) {
+                    (Some(collection), Some(key)) => (collection.to_string(), key.to_string()),
+                    _ =>  {
+                        return Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                "Invalid command: please provide collection name and key")
+                                  )
+                    }
+                };
+                return Ok(Command::Delete{ collection, key })
+            }
+            | Some(..) | None => {
+                return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid command")
+                          )
+            }
         }
     }
 
     // todo:
     // parse query into a valid command
     pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
-        let command = Engine::parse_string_to_command(query).unwrap();
+        let command = match Engine::parse_string_to_command(query) {
+            Ok(x) => x,
+            Err(e) => return Err(e)
+        };
 
         match command {
             Command::ListCollections => {
@@ -127,7 +168,7 @@ impl Engine {
                     self.new_collection(&collection)?;
                     return Ok(Some(format!("collection created: {:?}", collection)))
             },
-            Command::GetEntries { collection } => todo!("get entries no implemented"),
+            Command::GetEntries { collection: _ } => todo!("get entries no implemented"),
             Command::GetEntry { collection, key } => {
                 let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
                     Some(collection) => collection,
@@ -151,13 +192,21 @@ impl Engine {
                     None => todo!("invalid collection")
                 };
 
+                let now = Utc::now();
+                let timestamp_i64 = now.timestamp();
+                let timestamp_u128 = timestamp_i64 as u128;
+                let datetime: DateTime<Utc> = DateTime::from_utc(now.naive_utc(), Utc);
+
+                println!("u128 timestamp: {}", timestamp_u128);
+                println!("date: {}", datetime.format("%Y-%m-%d %H:%M:%S"));
+
                 let entry = lsm::TableEntry {
                     deleted: false,
                     key: key.clone().into(),
                     value: Some(value.into()),
                     // todo:
-                    // generate a valid timestamp, and add the field updated_at
-                    timestamp: 1
+                    // change LSM timestamp from u128 to i64
+                    timestamp: timestamp_u128
                 };
 
                 collection.write(entry).unwrap();

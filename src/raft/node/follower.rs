@@ -165,7 +165,7 @@ impl Role<Follower> {
 
                     self.state_tx.send(entry.clone()).unwrap();
                 }
-                else if _command[1] == "get" {
+                else if _command[0] == "get" {
                     let entry = Entry { 
                         request_id: Some(request_id),
                         index: self.log.last_index+1,
