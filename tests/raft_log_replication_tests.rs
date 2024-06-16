@@ -27,7 +27,7 @@ async fn raft_basic_log_replication() {
     };
 
     let (node_tx_2, mut node_rx_2) = unbounded_channel();
-    let (state_tx_2, _) = tokio::sync::mpsc::unbounded_channel();
+    let (state_tx_2, _state_rx_2) = tokio::sync::mpsc::unbounded_channel();
     let node2 = Role {
         id: "b".into(),
         peers: vec!["a".into(), "c".into()],
@@ -35,11 +35,11 @@ async fn raft_basic_log_replication() {
         node_tx: node_tx_2,
         state_tx: state_tx_2,
         outbound_tx: outbound_tx.clone(),
-        role: Follower::new(Some("a".to_string()), None, 4)
+        role: Follower::new(Some("a".to_string()), 4)
     };
 
     let (node_tx_3, mut node_rx_3) = unbounded_channel();
-    let (state_tx_3, _) = tokio::sync::mpsc::unbounded_channel();
+    let (state_tx_3, _state_rx_3) = tokio::sync::mpsc::unbounded_channel();
     let node3 = Role {
         id: "c".into(),
         peers: vec!["a".into(), "b".into()],
@@ -47,7 +47,7 @@ async fn raft_basic_log_replication() {
         node_tx: node_tx_3,
         state_tx: state_tx_3,
         outbound_tx: outbound_tx.clone(),
-        role: Follower::new(Some("a".to_string()), None, 4)
+        role: Follower::new(Some("a".to_string()), 4)
     };
 
     // leader should handle a clientRequest
