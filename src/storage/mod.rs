@@ -149,8 +149,6 @@ impl Engine {
         }
     }
 
-    // todo:
-    // parse query into a valid command
     pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
         let command = match Engine::parse_string_to_command(query) {
             Ok(x) => x,
