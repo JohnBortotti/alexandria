@@ -55,7 +55,7 @@ impl Engine {
                     if path.is_dir() {
                         if let Some(folder_name) = path.clone().file_name() {
                             if let Some(folder_name_str) = folder_name.to_str() {
-                                let collection = lsm::Lsm::new(path, 128).unwrap();
+                                let collection = lsm::Lsm::new(path, 64).unwrap();
                                 collections.insert(folder_name_str.to_string(), collection);
                             }
                         }
@@ -75,13 +75,14 @@ impl Engine {
         path.push(collection_name);
         create_dir_all(&path)?;
 
+        // todo: set memtable_max from config file
         let collection = lsm::Lsm::new(path, 128).unwrap();
         self.collections.insert(collection_name.to_string(), collection);
 
         Ok(())
     }
 
-    // create a proper error struct
+    // todo: create a proper error struct
     fn parse_string_to_command(query: String) -> Result<Command, std::io::Error> {
         let _query: Vec<&str> = query
             .strip_suffix("\r\n")

@@ -99,24 +99,28 @@ impl Lsm {
 
             remove_file(&self.wal.path)?;
             self.wal = wal::WAL::new(&self.path, timestamp)?;
+            self.wal.append(data)?;
         }
 
         Ok(())
     }
 
-    // TODO:
+    // todo:
     // [ ] implement Bloom filter
+    // [ ] create integration test to test storage engine
     pub fn search(&self, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {
                 return Ok(Some(entry.clone()));
             };
 
-            // for table in self.tables.iter().rev() {
-            //     let metadata_file = BufReader::new(
-            //         File::open(self.path.clone().join(table.timestamp.to_string() + ".sst_meta"))?
-            //         );
-            // }
+            for table in self.tables.iter().rev() {
+                if let Some(res) = table.search(&self.path, key)? {
+                    if let Some(entry) = table.get_entry(&self.path, res)? {
+                        return Ok(Some(entry))
+                    }
+                }
+            }
             Ok(None)
         }
 

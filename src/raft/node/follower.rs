@@ -2,7 +2,6 @@ use super::super::{
     message::Address, message::Event, message::Message, 
     logging::{log_raft, RaftLogType}
 };
-use tokio::sync::mpsc::unbounded_channel;
 use super::{candidate::Candidate, Node, Role, log::Entry};
 use crate::utils::config::CONFIG;
 use crate::raft::server::{NodeResponse, NodeResponseType};
