@@ -119,10 +119,14 @@ impl Role<Leader> {
             },
             Event::AckEntries { index } => {
                 let addr = match msg.from {
-                    // todo:
-                    // dont panic!(), just log
                     Peer(peer) => peer,
-                    _ => panic!("Expected msg sender to be a peer instead broadcast"),
+                    sender => {
+                        log_raft(RaftLogType::Error { 
+                            message: format!("Receiving message from unexpected sender: {:?}", sender)
+                        });
+
+                        return Ok(self.into())
+                    } 
                 };
                 self.role.peer_last_index.entry(addr).and_modify(|e| *e = index);
 

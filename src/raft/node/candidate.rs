@@ -42,9 +42,13 @@ impl Role<Candidate> {
                 if msg.term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
-                        // todo:
-                        // dont panic!(), just log
-                        _ => panic!("Unexpected Address"),
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Receiving message from unexpected address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+                        } 
                     };
 
                     log_raft(
@@ -65,8 +69,14 @@ impl Role<Candidate> {
                 if msg.term > self.log.last_term {
                     let from = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
-                        // todo: dont panic!(), just log
-                        _ => panic!("Unexpected Address"),
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Receiving message from unexpected address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+
+                        }
                     };
 
                     let vote_msg = Message::new(
@@ -120,11 +130,11 @@ impl Role<Candidate> {
                     Ok(self.into())
                 }
             },
-            _ => { 
-                log_raft(
-                    RaftLogType::Error 
-                        { content: "receiving undefined message event".to_string() }
-                );
+            msg => { 
+                log_raft(RaftLogType::Error { 
+                    message: format!("receiving undefined message event: {:?}", msg) 
+                });
+
                 Ok(self.into()) 
             }
         }

@@ -15,7 +15,7 @@ pub enum RaftLogType {
     SendingMessage { message: Message },
     LogAppend { entry: Vec<Entry> },
     LogCommit { index: usize },
-    Error { content: String },
+    Error { message: String },
 }
 
 #[derive(Serialize)]

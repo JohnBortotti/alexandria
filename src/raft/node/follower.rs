@@ -47,7 +47,6 @@ impl Role<Follower> {
                                 RaftLogType::LogAppend { entry: entries.clone() }
                             );
 
-                            // removing request_id
                             let entries: Vec<Entry> = entries.iter().map(|entry| {
                                 Entry {
                                     request_id: None,
@@ -79,8 +78,13 @@ impl Role<Follower> {
 
                     let leader = match msg.from {
                         Address::Peer(id) => id,
-                        // todo: dont panic!(), just log
-                        _ => panic!("Unexpected msg.from value")
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Unexpected leader address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+                        }
                     };
                     // todo: fix this, send ack only if entries != None
                     let ack = Message::new(
@@ -119,8 +123,14 @@ impl Role<Follower> {
 
                             return Ok(self.follow(Address::Peer(sender)))
                         }
-                        // todo: dont panic!(), just log
-                        _ => panic!("Unexpected sender address"),
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Receiving message from unexpected address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+
+                        } 
                     };
                 }
             },
@@ -142,10 +152,6 @@ impl Role<Follower> {
                     return Ok(self.into())
                 };
             },
-            // todo:
-            // - enable read queries to be executed by followers (this will improve performance
-            // with an eventual consistency tradeoff)
-            // - if the query is write, then the request should be redirected to the leader
             Event::ClientRequest { request_id, command } => {
                 let _command: Vec<&str> = command
                     .strip_suffix("\r\n")
@@ -194,10 +200,10 @@ impl Role<Follower> {
                     }
                 }
             }
-            _ => { 
+            msg => { 
                 log_raft(
                     RaftLogType::Error 
-                        { content: "receiving undefined message event".to_string() }
+                        { message: format!("Receiving undefined message event: {:?}", msg) }
                 );
             }
         };
@@ -248,8 +254,13 @@ impl Role<Follower> {
     fn follow(self, leader: Address) -> Node {
         let address = match leader {
             Address::Peer(addr) => addr,
-            // todo: dont panic!(), just log
-            _ => panic!("Expected leader to be an Peer Address"),
+            addrs => {
+                log_raft(RaftLogType::Error { 
+                    message: format!("Trying to follow an invalid peer address: {:?}", addrs)
+                });
+
+                return self.into()
+            } 
         };
 
         log_raft(
