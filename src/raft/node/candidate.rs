@@ -112,12 +112,7 @@ impl Role<Candidate> {
             Event::Vote { voted_for } => {
                 if voted_for == self.id {
                     self.role.votes += 1;
-
-                    // todo:
-                    // check this rule,
-                    // i guess it can become leader with 
-                    // majority of votes instead of all votes
-                    if self.role.votes >= self.peers.len() as u64 {
+                    if self.role.votes >= (self.peers.len()/2) as u64 {
                         let peers = self.peers.clone();
                         Ok(self
                            .become_role(Leader::new(peers, CONFIG.raft.leader_idle_timeout))
