@@ -5,9 +5,9 @@ mod storage;
 
 use std::env;
 use tokio::net::TcpListener;
-use raft::{node::log::Log, logging::log_raft, logging::RaftLogType};
+use raft::node::log::Log; 
 use log::LevelFilter;
-use utils::config::CONFIG;
+use utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 
 #[tokio::main]
 async fn main() {

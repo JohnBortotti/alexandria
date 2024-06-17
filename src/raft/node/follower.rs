@@ -1,9 +1,8 @@
 use super::super::{
     message::Address, message::Event, message::Message, 
-    logging::{log_raft, RaftLogType}
 };
 use super::{candidate::Candidate, Node, Role, log::Entry};
-use crate::utils::config::CONFIG;
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Follower {

@@ -2,9 +2,8 @@ use super::{
     message::Message,
     node::log::Entry,
     state_machine::StateMachine,
-    logging::{log_raft, RaftLogType}
 };
-use crate::utils::config::CONFIG;
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 use crate::raft::server::NodeResponse;
 
 use tokio::sync::mpsc;

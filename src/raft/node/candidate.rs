@@ -1,9 +1,8 @@
 use super::super::{
     message::Address, message::Event, message::Message,
-    logging::{log_raft, RaftLogType}
 };
 use super::{follower::Follower, leader::Leader, Node, Role };
-use crate::utils::config::CONFIG;
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 use rand::Rng;
 
 pub struct Candidate {

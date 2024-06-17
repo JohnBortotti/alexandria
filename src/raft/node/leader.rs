@@ -1,9 +1,9 @@
 use super::{Node, Role, log::Entry};
 use super::super::{
     message::Message, message::Event, message::Address::Peer,
-    logging::{log_raft, RaftLogType}
 };
 use std::collections::HashMap;
+use crate::utils::log::{log_raft, RaftLogType};
 use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Leader {
