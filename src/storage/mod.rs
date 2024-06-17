@@ -30,7 +30,7 @@ pub enum Command {
     GetEntries { collection: String },
     GetEntry { collection: String, key: String },
     CreateEntry { collection: String, key: String, value: String },
-    Delete { collection: String, key: String }
+    DeleteEntry { collection: String, key: String }
 }
 
 // todo:
@@ -139,7 +139,7 @@ impl Engine {
                                   )
                     }
                 };
-                return Ok(Command::Delete{ collection, key })
+                return Ok(Command::DeleteEntry { collection, key })
             }
             | Some(..) | None => {
                 return Err(std::io::Error::new(
@@ -178,9 +178,9 @@ impl Engine {
                     Ok(res) => match res {
                         None => Ok(None),
                         // todo: improve here
-                        Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
+                        Some(entry) => Ok(Some(format!("{{ key: {}, value: {:?}, timestamp: {}, deleted: {} }}", 
                                                        String::from_utf8(entry.key).unwrap(),
-                                                       String::from_utf8(entry.value.unwrap()).unwrap(),
+                                                       String::from_utf8(entry.value.unwrap_or(vec!())).unwrap(),
                                                        entry.timestamp, entry.deleted))),
                     }
                 }
@@ -194,10 +194,6 @@ impl Engine {
                 let now = Utc::now();
                 let timestamp_i64 = now.timestamp();
                 let timestamp_u128 = timestamp_i64 as u128;
-                let datetime: DateTime<Utc> = DateTime::from_utc(now.naive_utc(), Utc);
-
-                println!("u128 timestamp: {}", timestamp_u128);
-                println!("date: {}", datetime.format("%Y-%m-%d %H:%M:%S"));
 
                 let entry = lsm::TableEntry {
                     deleted: false,
@@ -220,7 +216,7 @@ impl Engine {
                     }
                 }
             },
-            Command::Delete { collection, key } => {
+            Command::DeleteEntry { collection, key } => {
                 let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
                     Some(collection) => collection,
                     None => todo!("invalid collection")

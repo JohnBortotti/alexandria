@@ -65,6 +65,7 @@ impl Lsm {
                     wal::WAL::new(&path, timestamp)? 
                 }
             };
+
             let tables = Lsm::search_for_table_files(&path)?;
 
             Ok(Self { path, memtable, memtable_size, wal, tables })
@@ -106,7 +107,6 @@ impl Lsm {
     // todo:
     // [ ] implement Bloom filter
     // [ ] create integration test to test storage engine
-    // [ ] when peers reset they forget sstables
     pub fn search(&self, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {
@@ -155,25 +155,29 @@ impl Lsm {
                 if path.is_file() {
                     if let Some(ext) = path.extension() {
                         if ext == "sst_index" {
-                            let index_file = path.clone();
                             let parent_dir = path.parent().unwrap();
+                            let index_file = path.clone();
                             let metadata_file = 
                                 parent_dir.join(path.file_stem().unwrap())
                                 .with_extension("sst_meta");
                             let data_file = 
                                 parent_dir.join(path.file_stem().unwrap())
-                                .with_extension("sst.data");
+                                .with_extension("sst_data");
 
                             if metadata_file.exists() && data_file.exists() {
                                 if let Some(timestamp) = 
                                     Lsm::get_timestamp_from_filename(&index_file) {
-                                        sstables.push(sstable::SSTable::new(&path, timestamp)?);
+                                        sstables.push(sstable::SSTable::new(
+                                                &path.parent().unwrap(),
+                                                timestamp)?
+                                        );
                                     }
                             }
                         }
                     }
                 }
             }
+
 
             sstables.sort_by_key(|table| table.timestamp);
         }

@@ -22,7 +22,7 @@ impl Memtable {
     pub fn search(&self, key: &[u8]) -> Option<&TableEntry> {
         if let Ok(i) = self.get_index(key) {
             if &self.entries[i].deleted == &true {
-                return None
+                return Some(&self.entries[i]);
             };
             return Some(&self.entries[i])
         }

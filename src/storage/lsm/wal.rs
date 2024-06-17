@@ -42,11 +42,10 @@ impl WAL {
 
     pub fn append(&mut self, entry: TableEntry) -> Result<(), std::io::Error> {
         let (value_len, value) = match entry.value {
-            None => (0, vec!()),
+            None => (vec![0].len(), vec![0]),
             Some(val) => (val.len(), val)
         };
 
-        self.file.write_all(&entry.timestamp.to_le_bytes())?;
         self.file.write_all(&(entry.deleted as u8).to_le_bytes())?;
         self.file.write_all(&entry.key.len().to_le_bytes())?;
         self.file.write_all(&value_len.to_le_bytes())?;
@@ -81,7 +80,7 @@ impl Iterator for WALIterator {
         if self.reader.read_exact(&mut deleted_buf).is_err() {
             return None
         };
-        let deleted = u8::from_be_bytes(deleted_buf) > 0;
+        let deleted = deleted_buf[0] > 0;
 
         let mut key_len_buf = [0; 8];
         if self.reader.read_exact(&mut key_len_buf).is_err() {
@@ -104,7 +103,7 @@ impl Iterator for WALIterator {
         if self.reader.read_exact(&mut value_buf).is_err() {
             return None
         };
-        let value = if !deleted { Some(value_buf) } else { None };
+        let value = if deleted { None } else { Some(value_buf) };
 
         let mut timestamp_buf = [0; 16];
         if self.reader.read_exact(&mut timestamp_buf).is_err() {
@@ -112,11 +111,12 @@ impl Iterator for WALIterator {
         };
         let timestamp = u128::from_le_bytes(timestamp_buf);
 
-        Some(Self::Item {
+        Some(self::TableEntry {
             deleted,
             key: key_buf,
             value,
             timestamp
+
         })
     }
 
