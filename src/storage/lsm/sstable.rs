@@ -33,8 +33,7 @@ pub struct SSTable {
 // +---------------+-----+-------------+
 impl SSTable {
     // todo:
-    // - last entry of each table is lost
-    // - add metadata file
+    // - [ ] add metadata file
     pub fn new(path: &Path, timestamp: u128) -> Result<Self, std::io::Error> {
         let _path = Path::new(&path).join(timestamp.to_string() + ".sst_data");
         let data_file = BufWriter::new(

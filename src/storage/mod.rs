@@ -46,7 +46,8 @@ impl Engine {
         let root_path = PathBuf::from(CONFIG.storage.data_path.clone());
         let mut collections = HashMap::new();
 
-        // scan root path looking for folders (each folder is a collection)
+        // this code scans root_path looking for folders,
+        // each folder is a collection
         if let Ok(entries) = read_dir(root_path.clone()) {
             for entry in entries {
                 if let Ok(entry) = entry {

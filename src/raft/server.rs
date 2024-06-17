@@ -192,7 +192,6 @@ impl Server {
                         // todo: parse command
                         let user_command = format!("{}\n", req_body[1]);
                         let msg = message::Message::new(
-                            // term is ignored here so we just set it 0
                             0,
                             message::Address::Client,
                             message::Address::Peer("test".to_string()),
