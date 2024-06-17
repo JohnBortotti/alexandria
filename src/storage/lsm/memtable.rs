@@ -29,7 +29,7 @@ impl Memtable {
         None
     }
 
-    pub fn insert(&mut self, key: &[u8], value: &[u8], timestamp: u128) {
+    pub fn insert(&mut self, key: &[u8], value: &[u8], timestamp: i64) {
         let entry = TableEntry {
             key: key.to_owned(),
             value: Some(value.to_owned()),
@@ -50,12 +50,12 @@ impl Memtable {
             },
             Err(i) => {
                 self.entries.insert(i, entry);
-                self.size += key.len() + value.len() + 1 + 16
+                self.size += key.len() + value.len() + 1 + 8
             }
         }
     }
 
-    pub fn delete(&mut self, key: &[u8], timestamp: u128) {
+    pub fn delete(&mut self, key: &[u8], timestamp: i64) {
         let entry = TableEntry {
             key: key.to_owned(),
             value: None,
@@ -72,7 +72,7 @@ impl Memtable {
             },
             Err(i) => {
                 self.entries.insert(i, entry);
-                self.size += key.len() + 1 + 16
+                self.size += key.len() + 1 + 8
             }
         }
     }

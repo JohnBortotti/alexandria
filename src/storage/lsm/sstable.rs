@@ -24,7 +24,7 @@ pub struct SSTable {
 // SSTable entry formats
 // data_file
 // +---------------+---------------+-----------------+-----+-------+-----------------+
-// | Tombstone(1B) | Key Size (8B) | Value Size (8B) | Key | Value | Timestamp (16B) |
+// | Tombstone(1B) | Key Size (8B) | Value Size (8B) | Key | Value | Timestamp (8B)  |
 // +---------------+---------------+-----------------+-----+-------+-----------------+
 //
 // index_file
@@ -59,7 +59,7 @@ impl SSTable {
         for entry in &memtable.entries {
             let key_len = entry.key.clone().len() as u64;
             let value_len = entry.value.as_ref().map_or(0, |v| v.len()) as u64;
-            let entry_size = 1 + 8 + 8 + key_len + value_len + 16;
+            let entry_size = 1 + 8 + 8 + key_len + value_len + 8;
 
             self.data_file.write_all(&(entry.deleted as u8).to_le_bytes())?;
             self.data_file.write_all(&key_len.to_le_bytes())?;
@@ -137,9 +137,9 @@ impl SSTable {
        let mut value_buffer = vec![0u8; value_len as usize];
        data_file.read_exact(&mut value_buffer)?;
 
-       let mut timestamp_buffer = [0; 16];
+       let mut timestamp_buffer = [0; 8];
        data_file.read_exact(&mut timestamp_buffer)?;
-       let timestamp = u128::from_le_bytes(timestamp_buffer);
+       let timestamp = i64::from_le_bytes(timestamp_buffer);
 
        let entry = TableEntry {
            key: key_buffer,

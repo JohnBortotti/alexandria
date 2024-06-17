@@ -11,7 +11,7 @@ use std::{
 // 
 // WAL entry format:
 // +---------------+---------------+-----------------+-----+-------+-----------------+
-// | Tombstone(1B) | Key Size (8B) | Value Size (8B) | Key | Value | Timestamp (16B) |
+// | Tombstone(1B) | Key Size (8B) | Value Size (8B) | Key | Value | Timestamp (8B)  |
 // +---------------+---------------+-----------------+-----+-------+-----------------+
 #[derive(Debug)]
 pub struct WAL {
@@ -105,11 +105,11 @@ impl Iterator for WALIterator {
         };
         let value = if deleted { None } else { Some(value_buf) };
 
-        let mut timestamp_buf = [0; 16];
+        let mut timestamp_buf = [0; 8];
         if self.reader.read_exact(&mut timestamp_buf).is_err() {
             return None
         };
-        let timestamp = u128::from_le_bytes(timestamp_buf);
+        let timestamp = i64::from_le_bytes(timestamp_buf);
 
         Some(self::TableEntry {
             deleted,

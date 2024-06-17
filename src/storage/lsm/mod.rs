@@ -28,7 +28,7 @@ use std::{
 pub struct TableEntry {
     pub key: Vec<u8>,
     pub value: Option<Vec<u8>>,
-    pub timestamp: u128,
+    pub timestamp: i64,
     pub deleted: bool
 }
 

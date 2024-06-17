@@ -1,7 +1,7 @@
 mod lsm;
 
 use std::{collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
-use chrono::{Utc, DateTime};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use crate::utils::config::CONFIG;
 
@@ -34,7 +34,6 @@ pub enum Command {
 }
 
 // todo:
-// - choose the communication way
 // - choose how to handle data locks
 pub struct Engine {
     root_path: PathBuf,
@@ -192,16 +191,13 @@ impl Engine {
                     None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
 
-                // todo: change LSM timestamp from u128 to i64
                 let now = Utc::now();
-                let timestamp_i64 = now.timestamp();
-                let timestamp_u128 = timestamp_i64 as u128;
-
+                let timestamp = now.timestamp();
                 let entry = lsm::TableEntry {
                     deleted: false,
                     key: key.clone().into(),
                     value: Some(value.into()),
-                    timestamp: timestamp_u128
+                    timestamp
                 };
 
                 collection.write(entry).unwrap();
@@ -222,16 +218,13 @@ impl Engine {
                     None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
 
-                // todo: change LSM timestamp from u128 to i64
                 let now = Utc::now();
-                let timestamp_i64 = now.timestamp();
-                let timestamp_u128 = timestamp_i64 as u128;
-
+                let timestamp = now.timestamp();
                 let entry = lsm::TableEntry {
                     deleted: true,
                     key: key.clone().into(),
                     value: None,
-                    timestamp: timestamp_u128
+                    timestamp
                 };
 
                 collection.write(entry).unwrap();
