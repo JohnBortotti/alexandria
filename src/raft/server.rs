@@ -144,7 +144,21 @@ impl Server {
                                     }
 
                                 },
-                                NodeResponseType::NoLeader => todo!()
+                                NodeResponseType::NoLeader => {
+                                    let body = "Raft leader has not been elected yet";
+                                    let status_line = "HTTP/1.1 503 Service Unavailable\r\n";
+                                    let content_length = format!("Content-Length: {}\r\n", body.len());
+                                    let headers = "Content-Type: text/plain\r\n\r\n";
+                                    let response = format!("{}{}{}{}", status_line, content_length, headers, body);
+
+                                    if let Some(mut socket) = socket {
+                                        if let Err(err) = 
+                                            socket.write_all(response.as_bytes()).await {
+                                                eprintln!("Failed to write response to socket: {:?}", err);
+                                            }
+                                    }
+
+                                }
                             }
                 }
             }
