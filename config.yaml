@@ -1,3 +1,6 @@
+server:
+  raft_port: 8080
+  outbound_port: 5000
 raft:
   tick_millis_duration: 3000
   leader_seen_timeout: 5
@@ -7,4 +10,3 @@ raft:
 storage:
   max_memtable_size: 64
   data_path: "./db-data"
-

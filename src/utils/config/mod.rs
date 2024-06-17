@@ -5,8 +5,15 @@ use std::io::Read;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub server: ServerConfig,
     pub raft: RaftConfig,
     pub storage: StorageConfig
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ServerConfig {
+    pub raft_port: u16,
+    pub outbound_port: u16
 }
 
 #[derive(Debug, Deserialize, Serialize)]

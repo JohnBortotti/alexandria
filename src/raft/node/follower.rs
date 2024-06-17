@@ -189,8 +189,7 @@ impl Role<Follower> {
                         },
                         Some(ref leader) => {
                             let _addr: Vec<&str> = leader.split(":").collect();
-                            // todo: fix this gambiarra
-                            let _addr = format!("{}:5000", _addr[0]);
+                            let _addr = format!("{}:{}", _addr[0], CONFIG.server.outbound_port);
                             let response = NodeResponse {
                                 request_id,
                                 response_type: NodeResponseType::Redirect { address: _addr }

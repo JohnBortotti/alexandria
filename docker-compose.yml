@@ -4,8 +4,8 @@ services:
     build:
       context: .
     environment:
-      - PEER_ADDR=192.30.0.101:8080
-      - PEERS=192.30.0.102:8080,192.30.0.103:8080
+      - PEER_ADDR=192.30.0.101
+      - PEERS=192.30.0.102,192.30.0.103
     networks:
       raft_network:
         ipv4_address: 192.30.0.101
@@ -18,8 +18,8 @@ services:
   peer2:
     image: alexandria-image
     environment:
-      - PEER_ADDR=192.30.0.102:8080
-      - PEERS=192.30.0.101:8080,192.30.0.103:8080
+      - PEER_ADDR=192.30.0.102
+      - PEERS=192.30.0.101,192.30.0.103
     networks:
       raft_network:
         ipv4_address: 192.30.0.102
@@ -32,8 +32,8 @@ services:
   peer3:
     image: alexandria-image
     environment:
-      - PEER_ADDR=192.30.0.103:8080
-      - PEERS=192.30.0.101:8080,192.30.0.102:8080
+      - PEER_ADDR=192.30.0.103
+      - PEERS=192.30.0.101,192.30.0.102
     networks:
       raft_network:
         ipv4_address: 192.30.0.103

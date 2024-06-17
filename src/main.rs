@@ -5,12 +5,12 @@ mod storage;
 
 use std::env;
 use tokio::net::TcpListener;
-use raft::{ node::log::Log, logging::log_raft, logging::RaftLogType };
+use raft::{node::log::Log, logging::log_raft, logging::RaftLogType};
 use log::LevelFilter;
+use utils::config::CONFIG;
 
 #[tokio::main]
 async fn main() {
-    // config log driver 
     let _ = simple_logging::log_to_file("./logs/info.log", LevelFilter::Info);
 
     let env_addr = env::var("PEER_ADDR").expect("PEER_ADDR env var not found");
@@ -29,14 +29,16 @@ async fn main() {
         });
 
     let server = raft::server::Server::new(&env_addr, peers, Log::new()).await;
-    let raft_listener = match TcpListener::bind("0.0.0.0:8080").await {
-        Ok(listener) => listener,
-        _ => panic!("TCPListener bind error"),
-    };
-    let outbound_listener = match TcpListener::bind("0.0.0.0:5000").await {
-        Ok(listener) => listener,
-        _ => panic!("TCPListener bind error"),
-    };
+    let raft_listener = 
+        match TcpListener::bind(format!("0.0.0.0:{}", CONFIG.server.raft_port)).await {
+            Ok(listener) => listener,
+            _ => panic!("TCPListener bind error"),
+        };
+    let outbound_listener = 
+        match TcpListener::bind(format!("0.0.0.0:{}", CONFIG.server.outbound_port)).await {
+            Ok(listener) => listener,
+            _ => panic!("TCPListener bind error"),
+        };
 
     let _ = server.serve(raft_listener, outbound_listener).await;
 

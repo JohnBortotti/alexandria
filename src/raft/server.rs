@@ -45,8 +45,15 @@ impl Server {
     pub async fn new(id: &str, peers: Vec<String>, log: Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
         let (outbound_tx, outbound_rx) = unbounded_channel();
+
+        let id = format!("{}:{}", id, CONFIG.server.raft_port);
+        let peers: Vec<String> = peers
+            .into_iter()
+            .map(|peer| format!("{}:{}", peer, CONFIG.server.raft_port))
+            .collect();
+
         Self {
-            node: node::Node::new(id, peers.clone(), log, node_tx, outbound_tx).await,
+            node: node::Node::new(&id, peers.clone(), log, node_tx, outbound_tx).await,
             peers,
             node_rx,
             outbound_rx,
