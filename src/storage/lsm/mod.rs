@@ -98,6 +98,17 @@ impl Lsm {
 
             remove_file(&self.wal.path)?;
             self.wal = wal::WAL::new(&self.path, timestamp)?;
+
+            if data.deleted == false {
+                if let Some(val) = &data.value {
+                    self.memtable.insert(&data.key, val, data.timestamp)
+                } else {
+                    return Err
+                        (std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid data"))
+                }
+            } else {
+                self.memtable.delete(&data.key, data.timestamp)
+            }
             self.wal.append(data)?;
         }
 

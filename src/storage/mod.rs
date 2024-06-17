@@ -191,6 +191,7 @@ impl Engine {
                     None => todo!("invalid collection")
                 };
 
+                // todo: change LSM timestamp from u128 to i64
                 let now = Utc::now();
                 let timestamp_i64 = now.timestamp();
                 let timestamp_u128 = timestamp_i64 as u128;
@@ -199,8 +200,6 @@ impl Engine {
                     deleted: false,
                     key: key.clone().into(),
                     value: Some(value.into()),
-                    // todo:
-                    // change LSM timestamp from u128 to i64
                     timestamp: timestamp_u128
                 };
 
@@ -222,13 +221,16 @@ impl Engine {
                     None => todo!("invalid collection")
                 };
 
+                // todo: change LSM timestamp from u128 to i64
+                let now = Utc::now();
+                let timestamp_i64 = now.timestamp();
+                let timestamp_u128 = timestamp_i64 as u128;
+
                 let entry = lsm::TableEntry {
                     deleted: true,
                     key: key.clone().into(),
                     value: None,
-                    // todo:
-                    // generate a valid timestamp, and add the field updated_at
-                    timestamp: 1
+                    timestamp: timestamp_u128
                 };
 
                 collection.write(entry).unwrap();
