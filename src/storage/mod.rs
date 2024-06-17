@@ -169,11 +169,11 @@ impl Engine {
             },
             Command::GetEntries { collection: _ } => todo!("get entries no implemented"),
             Command::GetEntry { collection, key } => {
-                let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
+                let _collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
                     Some(collection) => collection,
-                    None => todo!("invalid collection")
+                    None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
-                match collection.search(&Vec::try_from(key).unwrap()) {
+                match _collection.search(&Vec::try_from(key).unwrap()) {
                     Err(msg) => Err(msg),
                     Ok(res) => match res {
                         None => Ok(None),
@@ -188,7 +188,7 @@ impl Engine {
             Command::CreateEntry { collection, key, value } => {
                 let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
                     Some(collection) => collection,
-                    None => todo!("invalid collection")
+                    None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
 
                 // todo: change LSM timestamp from u128 to i64
@@ -218,7 +218,7 @@ impl Engine {
             Command::DeleteEntry { collection, key } => {
                 let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
                     Some(collection) => collection,
-                    None => todo!("invalid collection")
+                    None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
 
                 // todo: change LSM timestamp from u128 to i64
