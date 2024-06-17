@@ -5,7 +5,7 @@ use super::{
     node,
     node::log::Log
 };
-use crate::utils::config::CONFIG;
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 use std::{ 
     io::prelude::*, 
     collections::hash_map::HashMap, 
@@ -132,7 +132,9 @@ impl Server {
                                         if let Some(mut socket) = socket {
                                             if let Err(err) = 
                                                 socket.write_all(response.as_bytes()).await {
-                                                    eprintln!("Failed to write response to socket: {:?}", err);
+                                                    log_raft(RaftLogType::Error { 
+                                                        message: format!("Failed to write response on socket: {:?}", err)
+                                                    });
                                                 }
                                         }
 
@@ -146,7 +148,9 @@ impl Server {
                                     if let Some(mut socket) = socket {
                                         if let Err(err) = 
                                             socket.write_all(response.as_bytes()).await {
-                                                eprintln!("Failed to write response to socket: {:?}", err);
+                                                log_raft(RaftLogType::Error { 
+                                                    message: format!("Failed to write response on socket: {:?}", err)
+                                                });
                                             }
                                     }
 
@@ -161,7 +165,9 @@ impl Server {
                                     if let Some(mut socket) = socket {
                                         if let Err(err) = 
                                             socket.write_all(response.as_bytes()).await {
-                                                eprintln!("Failed to write response to socket: {:?}", err);
+                                                log_raft(RaftLogType::Error { 
+                                                    message: format!("Failed to write response on socket: {:?}", err)
+                                                });
                                             }
                                     }
 
@@ -204,7 +210,9 @@ impl Server {
 
                             if let Err(err) = 
                                 socket.write_all(res.as_bytes()).await {
-                                    eprintln!("Failed to write response to socket: {:?}", err);
+                                    log_raft(RaftLogType::Error { 
+                                        message: format!("Failed to write response on socket: {:?}", err)
+                                    });
                                 }
                             
                             return
@@ -227,7 +235,11 @@ impl Server {
 
                         tcp_inbound_tx.send(msg).unwrap();
                     },
-                    Err(..) => {}
+                    Err(err) => {
+                        log_raft(RaftLogType::Error { 
+                            message: format!("Error while reading socket: {:?}", err)
+                        });
+                    }
                 }
             });
         }
@@ -265,8 +277,10 @@ impl Server {
                     let res = "HTTP/1.1 200 OK\r\n";
                     let _ = socket.try_write(res.as_bytes());
                 }
-                Err(..) => {
-                    // todo: log this error
+                Err(err) => {
+                    log_raft(RaftLogType::Error { 
+                        message: format!("Error while reading socket: {:?}", err)
+                    });
                 }
             }
         }
@@ -303,9 +317,10 @@ impl Server {
                         }
                     };
                 },
-                x => {
-                    // todo: dont panic! just log and try to keep running
-                    panic!("Invalid message sender:{:?}", x)
+                addr => {
+                    log_raft(RaftLogType::Error { 
+                        message: format!("Invalid message sender: {:?}", addr)
+                    });
                 }
             }
         }

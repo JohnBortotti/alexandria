@@ -22,11 +22,10 @@ async fn main() {
          vec!()
     };
 
-    log_raft(
-        RaftLogType::PeerStart { 
-            id: env_addr.clone(), 
-            peers: peers.clone()
-        });
+    log_raft(RaftLogType::PeerStart { 
+        id: env_addr.clone(), 
+        peers: peers.clone()
+    });
 
     let server = raft::server::Server::new(&env_addr, peers, Log::new()).await;
     let raft_listener = 
