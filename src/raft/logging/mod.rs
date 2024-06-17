@@ -2,10 +2,10 @@ use serde::Serialize;
 use super::{message::Message, node::log::Entry };
 use log::info;
 
-/* todo
- * update this log interface, 
- * add warn and error level
-*/
+// todo:
+// - move this raft_log to a global peer_log (every kind of log, not only raft ones)
+// - add enum LogTime(Raftlog or ServerLog or StorageLog)
+// use the same log interface to log everything
 #[derive(Serialize)]
 pub enum RaftLogType {
     PeerStart { id: String, peers: Vec<String> },
