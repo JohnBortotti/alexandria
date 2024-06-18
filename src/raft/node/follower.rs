@@ -158,20 +158,10 @@ impl Role<Follower> {
                     .unwrap_or(&command)
                     .split(" ").collect();
 
-                if _command[0] == "list" {
+                if _command[0] == "list" || _command[0] == "get" {
                     let entry = Entry { 
                         request_id: Some(request_id),
-                        index: self.log.last_index+1,
-                        term: self.log.last_term, 
-                        command 
-                    };
-
-                    self.state_tx.send(entry.clone()).unwrap();
-                }
-                else if _command[0] == "get" {
-                    let entry = Entry { 
-                        request_id: Some(request_id),
-                        index: self.log.last_index+1,
+                        index: self.log.last_index,
                         term: self.log.last_term, 
                         command 
                     };
