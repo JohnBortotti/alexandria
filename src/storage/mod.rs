@@ -2,6 +2,7 @@ mod lsm;
 
 use std::{collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
 use chrono::Utc;
+use lsm::TableEntry;
 use serde::{Deserialize, Serialize};
 use crate::utils::config::CONFIG;
 
@@ -150,6 +151,16 @@ impl Engine {
         }
     }
 
+    fn entry_to_string(entry: TableEntry) -> String {
+        format!(
+            "{{ key: {}, value: {}, timestamp: {}, deleted: {}}}",
+            String::from_utf8(entry.key).unwrap_or("error".to_string()),
+            String::from_utf8(entry.value.unwrap_or(vec!())).unwrap_or("error".to_string()),
+            entry.timestamp, 
+            entry.deleted
+            )
+    }
+
     pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
         let command = match Engine::parse_string_to_command(query) {
             Ok(x) => x,
@@ -177,11 +188,7 @@ impl Engine {
                     Err(msg) => Err(msg),
                     Ok(res) => match res {
                         None => Ok(None),
-                        // todo: improve here
-                        Some(entry) => Ok(Some(format!("{{ key: {}, value: {:?}, timestamp: {}, deleted: {} }}", 
-                                                       String::from_utf8(entry.key).unwrap(),
-                                                       String::from_utf8(entry.value.unwrap_or(vec!())).unwrap(),
-                                                       entry.timestamp, entry.deleted))),
+                        Some(entry) => Ok(Some(Engine::entry_to_string(entry))),
                     }
                 }
             },
@@ -205,10 +212,7 @@ impl Engine {
                     Err(msg) => Err(msg),
                     Ok(res) => match res {
                         None => Ok(None),
-                        Some(entry) => Ok(Some(format!("{{ key: {}, value: {}, timestamp: {}, deleted: {} }}", 
-                                                       String::from_utf8(entry.key).unwrap(),
-                                                       String::from_utf8(entry.value.unwrap()).unwrap(),
-                                                       entry.timestamp, entry.deleted))),
+                        Some(entry) => Ok(Some(Engine::entry_to_string(entry)))
                     }
                 }
             },
