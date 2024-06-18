@@ -39,6 +39,9 @@ impl Memtable {
 
         match self.get_index(key) {
             Ok(i) => {
+                // todo: 
+                // fix bug, write a key, delete it, then try to write it again...
+                // and probably the bug is right here
                 if let Some(old) = self.entries[i].value.as_ref() {
                     if value.len() < old.len() {
                         self.size -= old.len() - value.len()

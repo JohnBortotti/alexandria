@@ -71,6 +71,8 @@ impl Lsm {
             Ok(Self { path, memtable, memtable_size, wal, tables })
         }
 
+    // todo: 
+    // fix bug, idk why but sometimes there is a strange .wal file outside collection folder
     pub fn write(&mut self, data: TableEntry) -> Result<(), std::io::Error> {
         if self.memtable.size < self.memtable_size {
             if data.deleted == false {

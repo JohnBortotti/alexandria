@@ -218,7 +218,6 @@ impl Server {
                             return
                         };
 
-                        // todo: parse command
                         let user_command = format!("{}\n", req_body[1]);
                         let msg = message::Message::new(
                             0,

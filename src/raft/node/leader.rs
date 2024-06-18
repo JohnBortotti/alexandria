@@ -30,9 +30,6 @@ impl Leader {
     }
 }
 
-// todo:
-// leader is sending an appendEntries (entries:None, commit_index:0), 
-// investigate if that can cause bugs
 impl Role<Leader> {
     pub fn tick(mut self) -> Node {
         log_raft(
