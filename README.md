@@ -4,12 +4,12 @@
 
 ## description
 
-**Alexandria** is a raft-based distributed database developed from scratch.
-This project is currently a work in progress.
+**Alexandria** is a raft-based distributed key-value database from scratch.
 
 ## disclaimer
 
-this is a personal project intended for study and learning purposes. It is not intended to be used as a real database in production environments.
+this personal project is intended for study and learning purposes 
+and is currently a work in progress.
 
 ## usage
 
