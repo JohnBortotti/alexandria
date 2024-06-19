@@ -71,10 +71,6 @@ impl Lsm {
             Ok(Self { path, memtable, memtable_size, wal, tables })
         }
 
-    // todo: 
-    // fix bug, idk why but sometimes there is a strange .wal file outside collection folder
-    // -- when a new database is created, the .wal is created, but in correct path
-    // -- when flushing to sstable the new .wal is in correct path too
     pub fn write(&mut self, data: TableEntry) -> Result<(), std::io::Error> {
         if self.memtable.size < self.memtable_size {
             if data.deleted == false {
@@ -121,7 +117,6 @@ impl Lsm {
 
     // todo:
     // [ ] implement Bloom filter
-    // [ ] create integration test to test storage engine
     pub fn search(&self, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {
