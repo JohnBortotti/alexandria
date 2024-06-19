@@ -39,23 +39,30 @@ impl Role<Follower> {
                 if self.is_leader(&msg.from) {
                     match entries {
                         None => {},
-                        // todo: implement safe appending, 
-                        // avoiding duplicated entries and keep ordering
                         Some(entries) => { 
                             log_raft(
                                 RaftLogType::LogAppend { entry: entries.clone() }
                             );
 
-                            let entries: Vec<Entry> = entries.iter().map(|entry| {
-                                Entry {
-                                    request_id: None,
-                                    command: entry.command.clone(),
-                                    index: entry.index,
-                                    term: entry.term
-                                }
-                            }).collect();
+                            let last_index = self.log.entries.last().map_or(0, |entry| entry.index);
+                            let valid_entries: Vec<Entry> = entries.iter()
+                                .filter_map(|new_entry| {
+                                    if new_entry.index > last_index {
+                                        Some(Entry {
+                                            request_id: None,
+                                            command: new_entry.command.clone(),
+                                            index: new_entry.index,
+                                            term: new_entry.term
+                                        })
+                                    } else {
+                                        log_raft(RaftLogType::Error { 
+                                            message: format!("Duplicate or out of order entry detected: {:?}", new_entry)
+                                        });
+                                        None
+                                    }
+                                }).collect();
 
-                            self.log.append(entries)
+                            self.log.append(valid_entries)
                         }
                     };
 
