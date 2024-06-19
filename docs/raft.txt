@@ -1,4 +1,4 @@
-== Notes about the Raft Algorithm
+== notes about the Raft Algorithm
 
 === Follower Role
 

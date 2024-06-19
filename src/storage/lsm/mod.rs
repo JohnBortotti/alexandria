@@ -121,7 +121,6 @@ impl Lsm {
 
     // todo:
     // [ ] implement Bloom filter
-    // [ ] create integration test to test storage engine
     pub fn search(&self, key: &[u8]) 
         -> Result<Option<TableEntry>, std::io::Error> {
             if let Some(entry) = self.memtable.search(key) {
