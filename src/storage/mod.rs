@@ -167,13 +167,19 @@ impl Engine {
         match command {
             Command::ListCollections => {
                 return Ok(Some(
-                        format!("collections: {:?}",
+                        format!("Collections: {:?}",
                                 self.collections.keys().collect::<Vec<&String>>())
                         ))
             },
             Command::CreateCollection { collection } => {
-                    self.new_collection(&collection)?;
-                    return Ok(Some(format!("collection created: {:?}", collection)))
+                if self.collections.contains_key(&collection) {
+                    return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            format!("Collection '{}' already exists", collection)))
+                };
+
+                self.new_collection(&collection)?;
+                return Ok(Some(format!("Collection created: '{}'", collection)))
             },
             Command::GetEntry { collection, key } => {
                 let _collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
@@ -229,7 +235,7 @@ impl Engine {
 
                 collection.write(entry).unwrap();
 
-                Ok(Some(format!("key '{}' deleted", key)))
+                Ok(Some(format!("Key '{}' deleted", key)))
             }
         }
     }
