@@ -28,7 +28,6 @@ use crate::utils::config::CONFIG;
 pub enum Command {
     ListCollections,
     CreateCollection { collection: String },
-    GetEntries { collection: String },
     GetEntry { collection: String, key: String },
     CreateEntry { collection: String, key: String, value: String },
     DeleteEntry { collection: String, key: String }
@@ -178,7 +177,6 @@ impl Engine {
                     self.new_collection(&collection)?;
                     return Ok(Some(format!("collection created: {:?}", collection)))
             },
-            Command::GetEntries { collection: _ } => todo!("get entries no implemented"),
             Command::GetEntry { collection, key } => {
                 let _collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
                     Some(collection) => collection,
