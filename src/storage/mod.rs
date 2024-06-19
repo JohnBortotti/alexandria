@@ -33,8 +33,6 @@ pub enum Command {
     DeleteEntry { collection: String, key: String }
 }
 
-// todo:
-// - choose how to handle data locks
 pub struct Engine {
     root_path: PathBuf,
     collections: HashMap<String, lsm::Lsm>,

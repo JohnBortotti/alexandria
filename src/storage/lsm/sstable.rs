@@ -34,6 +34,7 @@ pub struct SSTable {
 impl SSTable {
     // todo:
     // - [ ] add metadata file
+    // - [ ] change structure from simple array to ???
     pub fn new(path: &Path, timestamp: u128) -> Result<Self, std::io::Error> {
         let _path = Path::new(&path).join(timestamp.to_string() + ".sst_data");
         let data_file = BufWriter::new(
@@ -84,8 +85,6 @@ impl SSTable {
         Ok(())
     }
 
-    // todo:
-    // [ ] improve the search algorithm (btree?)
     pub fn search(&self, path: &Path, key: &[u8]) -> Result<Option<u64>, std::io::Error> {
         let mut index_file = BufReader::new(
             File::open(path.join(self.timestamp.to_string() + ".sst_index"))?);

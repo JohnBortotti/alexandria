@@ -30,7 +30,7 @@ impl StateMachine {
     pub async fn run(mut self, self_addr: String) {
         while let Some(entry) = self.state_rx.next().await {
             // todo: 
-            // provide concurrent access to the storage and handle locks
+            // provide concurrent access to the storage and handle data locks
             self.applied_index = entry.index;
 
             let result_entry: String = 
