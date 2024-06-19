@@ -1,6 +1,9 @@
 use super::{message::{Message, Address, Event}, 
     node::log::Entry, 
-    super::storage::Engine
+    super::{
+        storage::Engine,
+        utils::log::{log_raft, RaftLogType}
+    }
 };
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -18,7 +21,7 @@ impl StateMachine {
     pub fn new(
         state_rx: UnboundedReceiver<Entry>,
         node_tx: UnboundedSender<Message>,
-    ) -> Self {
+        ) -> Self {
         Self {
             state_rx: UnboundedReceiverStream::new(state_rx),
             node_tx,
@@ -42,18 +45,21 @@ impl StateMachine {
                     }
                 };
 
-            // todo:
-            // change the message struct of this channel and 
-            // handle possible errors on sending message
-            self.node_tx.send(Message::new(
-                    entry.term,
-                    Address::StateMachine,
-                    Address::Peer(self_addr.clone()),
-                    Event::StateResponse { 
-                        request_id: entry.request_id,
-                        result: Ok(result_entry)
-                    }
-            )).unwrap();
+            let message = Message::new(
+                entry.term,
+                Address::StateMachine,
+                Address::Peer(self_addr.clone()),
+                Event::StateResponse { 
+                    request_id: entry.request_id,
+                    result: Ok(result_entry)
+                }
+                );
+
+            if let Err(e) = self.node_tx.send(message) {
+                log_raft(RaftLogType::Error {
+                    message: format!("State_machine failed to send message: {:?}", e)
+                });
+            }
         }
     }
 }
