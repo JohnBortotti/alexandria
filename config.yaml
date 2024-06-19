@@ -2,7 +2,7 @@ server:
   raft_port: 8080
   outbound_port: 5000
 raft:
-  tick_millis_duration: 3000
+  tick_millis_duration: 150
   leader_seen_timeout: 5
   candidate_election_timeout: 5
   candidate_election_timeout_rand: 6
