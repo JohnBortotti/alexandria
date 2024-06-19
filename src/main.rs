@@ -40,6 +40,4 @@ async fn main() {
         };
 
     let _ = server.serve(raft_listener, outbound_listener).await;
-
-    // curl -X POST -d '(term:1, from: Peer("test"), to: Peer("test"), event: ClientRequest(command: "test"))' url
 }
