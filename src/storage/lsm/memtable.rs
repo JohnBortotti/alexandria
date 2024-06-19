@@ -80,3 +80,105 @@ impl Memtable {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_memtable() {
+        let memtable = Memtable::new();
+        assert_eq!(memtable.size, 0);
+        assert_eq!(memtable.entries.len(), 0);
+        assert_eq!(memtable.entries.len(), 0);
+    }
+
+    #[test]
+    fn test_insert() {
+        let mut memtable = Memtable::new();
+        memtable.insert(b"key1", b"value1", 1);
+
+        assert_eq!(memtable.size, b"key1".len() + b"value1".len() + 1 + 8);
+        assert_eq!(memtable.entries.len(), 1);
+        assert_eq!(
+            memtable.entries[0],
+            TableEntry {
+                key: b"key1".to_vec(),
+                value: Some(b"value1".to_vec()),
+                timestamp: 1,
+                deleted: false
+            });
+
+        memtable.insert(b"key2", b"value2", 2);
+        assert_eq!(memtable.entries.len(), 2);
+        assert_eq!(
+            memtable.size,
+            b"key1".len() + b"value1".len() + b"key2".len() + b"value2".len() + 2 + 2 * 8);
+
+    }
+
+    #[test]
+    fn test_search() {
+        let mut memtable = Memtable::new();
+
+        memtable.insert(b"key1", b"value1", 1);
+        let entry = memtable.search(b"key1");
+        assert!(entry.is_some());
+        let entry = entry.unwrap();
+        assert_eq!(entry.key, b"key1");
+        assert_eq!(entry.value.as_ref().unwrap(), b"value1");
+
+        let missing_entry = memtable.search(b"key2");
+        assert!(missing_entry.is_none());
+    }
+
+    #[test]
+    fn test_delete() {
+        let mut memtable = Memtable::new();
+
+        memtable.insert(b"key1", b"value1", 1);
+        assert_eq!(memtable.entries.len(), 1);
+        memtable.delete(b"key1", 2);
+        assert_eq!(memtable.entries.len(), 1);
+        assert_eq!(memtable.entries[0].deleted, true);
+        assert_eq!(memtable.entries[0].value, None);
+    }
+
+    #[test]
+    fn test_update_existing_entry() {
+        let mut memtable = Memtable::new();
+
+        memtable.insert(b"key1", b"value1", 1);
+        let original_size = memtable.size;
+        memtable.insert(b"key1", b"value2", 2);
+
+        assert_eq!(memtable.entries.len(), 1);
+        assert_eq!(memtable.entries[0].value.as_ref().unwrap(), b"value2");
+        assert_eq!(memtable.entries[0].timestamp, 2);
+        assert_eq!(memtable.size, original_size - b"value1".len() + b"value2".len());
+    }
+
+    #[test]
+    fn test_insert_and_delete_size() {
+        let mut memtable = Memtable::new();
+
+        memtable.insert(b"key1", b"value1", 1);
+
+        let entry = memtable.search(b"key1");
+        assert!(entry.is_some());
+        let entry = entry.unwrap();
+        assert_eq!(entry.key, b"key1");
+        assert_eq!(entry.value.as_ref().unwrap(), b"value1");
+
+        memtable.delete(b"key1", 3);
+        assert_eq!(memtable.size, b"key1".len() + 1 + 8);
+
+        let deleted_entry = memtable.search(b"key1");
+        assert!(deleted_entry.is_some());
+        let deleted_entry = deleted_entry.unwrap();
+        assert_eq!(deleted_entry.deleted, true);
+        assert!(deleted_entry.value.is_none());
+        assert_eq!(deleted_entry.timestamp, 3);
+    }
+
+}

@@ -24,7 +24,7 @@ use std::{
  *  2. Use the Bloom filter to determine if the key might be present on SSTable
  *  3. Search on SSTable
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableEntry {
     pub key: Vec<u8>,
     pub value: Option<Vec<u8>>,

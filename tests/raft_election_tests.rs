@@ -4,7 +4,7 @@ use tokio::sync::mpsc::unbounded_channel;
 #[tokio::test]
 async fn raft_basic_election() {
     let (node_tx_1, mut node_rx_1) = unbounded_channel();
-    let (outbound_tx, mut outbound_rx) = unbounded_channel();
+    let (outbound_tx, _outbound_rx) = unbounded_channel();
 
     let node1 = Node::new(
         "a",
