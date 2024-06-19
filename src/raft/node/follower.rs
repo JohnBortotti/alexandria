@@ -67,8 +67,8 @@ impl Role<Follower> {
                     };
 
                     // todo: implement safe commiting, 
-                    // verify if the index are stored in Log,
-                    // should i implement this on Log struct?
+                    // verify if the index are stored in Log to avoid
+                    // commiting entries that are not present in Log.entries
                     if commit_index > self.log.commit_index {
                         log_raft(
                             RaftLogType::LogCommit { index: commit_index }

@@ -73,6 +73,11 @@ impl Lsm {
 
     // todo: 
     // fix bug, idk why but sometimes there is a strange .wal file outside collection folder
+    // -- when a new database is created, the .wal is created, but in correct path
+    // -- when flushing to sstable the new .wal is in correct path too
+    //
+    // todo:
+    // validate collections, avoid creating a collection that already exists
     pub fn write(&mut self, data: TableEntry) -> Result<(), std::io::Error> {
         if self.memtable.size < self.memtable_size {
             if data.deleted == false {
