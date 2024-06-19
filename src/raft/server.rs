@@ -258,15 +258,30 @@ impl Server {
 
             match socket.try_read(&mut buffer) {
                 Ok(bytes_read) => {
-                    let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
+                    let req_text = match String::from_utf8(buffer[..bytes_read].to_vec()) {
+                        Ok(text) => text,
+                        Err(e) => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Error decoding UTF-8: {:?}", e)
+                            });
 
-                    // todo:
-                    // add validation to incoming messages
+                            let res = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                            let _ = socket.try_write(res.as_bytes());
+                            return Ok(());
+                        }
+                    };
+
                     let req_body: Vec<&str> =
                         req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                     if req_body.get(1).is_none() {
-                        panic!("message incorrect");
+                        log_raft(RaftLogType::Error { 
+                            message: format!("Malformed incoming request: {:?}", req_body)
+                        });
+
+                        let res = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                        let _ = socket.try_write(res.as_bytes());
+                        return Ok(());
                     };
 
                     let parsed_msg: message::Message = ron::from_str(req_body[1]).unwrap();
