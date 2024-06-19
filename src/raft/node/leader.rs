@@ -1,9 +1,10 @@
 use super::{Node, Role, log::Entry};
 use super::super::{
     message::Message, message::Event, message::Address::Peer,
-    logging::{log_raft, RaftLogType}
 };
 use std::collections::HashMap;
+use crate::utils::log::{log_raft, RaftLogType};
+use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Leader {
     pub peer_last_index: HashMap<String, usize>,
@@ -29,9 +30,6 @@ impl Leader {
     }
 }
 
-// todo:
-// leader is sending an appendEntries (entries:None, commit_index:0), 
-// investigate if that can cause bugs
 impl Role<Leader> {
     pub fn tick(mut self) -> Node {
         log_raft(
@@ -98,23 +96,31 @@ impl Role<Leader> {
             | Event::RequestVote {..}  => {},
             | Event::StateResponse { request_id, result } => {
                 if let Some(request_id) = request_id {
-                    let res = match result {
+                    let result = match result {
                         Ok(r) => r,
                         Err(_) => "error on state_machine".to_string()
                     };
-                    self.outbound_tx.send((request_id, res)).unwrap();
+
+                    let response = NodeResponse {
+                        request_id,
+                        response_type: NodeResponseType::Result { result }
+                    };
+
+                    self.outbound_tx.send(response).unwrap();
 
                     return Ok(self.into())
                 };
-
-                return Ok(self.into())
             },
             Event::AckEntries { index } => {
                 let addr = match msg.from {
-                    // todo:
-                    // dont panic!(), just log
                     Peer(peer) => peer,
-                    _ => panic!("Expected msg sender to be a peer instead broadcast"),
+                    sender => {
+                        log_raft(RaftLogType::Error { 
+                            message: format!("Receiving message from unexpected sender: {:?}", sender)
+                        });
+
+                        return Ok(self.into())
+                    } 
                 };
                 self.role.peer_last_index.entry(addr).and_modify(|e| *e = index);
 
@@ -128,29 +134,45 @@ impl Role<Leader> {
                     );
 
                     // todo:
-                    // commit first on log or state_machine?
-                    // currently the state_machine can retun an error 
-                    // and the log will commit the entry anyway
+                    // await for state response then if is safe commit to log,
+                    // this will avoid broadcasting errors
                     self.log.commit(self.log.last_index);
                     let entry = self.log.entries.last().unwrap();
                     self.state_tx.send(entry.clone()).unwrap();
                 }
             }
             Event::ClientRequest { request_id, command } => {
+                let _command: Vec<&str> = command
+                    .strip_suffix("\r\n")
+                    .or(command.strip_suffix("\n"))
+                    .unwrap_or(&command)
+                    .split(" ").collect();
+
                 let entry = Entry { 
                     request_id: Some(request_id),
                     index: self.log.last_index+1,
                     term: self.log.last_term, 
-                    command 
+                    command: command.clone()
                 };
 
                 log_raft(
                     RaftLogType::LogAppend { entry: vec!(entry.clone()) }
-                );
+                    );
 
-                self.log.append(vec!(entry));
-                let new_node = self.broadcast_append_entries();
-                return Ok(new_node.into())
+                if _command[0] == "list" || _command[0] == "get" {
+                    let entry = Entry { 
+                        request_id: Some(request_id),
+                        index: self.log.last_index,
+                        term: self.log.last_term, 
+                        command 
+                    };
+
+                    self.state_tx.send(entry.clone()).unwrap();
+                } else {
+                    self.log.append(vec!(entry));
+                    let new_node = self.broadcast_append_entries();
+                    return Ok(new_node.into());
+                }
             }
         }
 

@@ -1,25 +1,23 @@
 use super::super::{
     message::Address, message::Event, message::Message, 
-    logging::{log_raft, RaftLogType}
 };
-use super::{candidate::Candidate, Node, Role};
-use crate::utils::config::CONFIG;
+use super::{candidate::Candidate, Node, Role, log::Entry};
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
+use crate::raft::server::{NodeResponse, NodeResponseType};
 
 pub struct Follower {
     pub leader: Option<String>,
-    voted: Option<String>,
     leader_seen_ticks: u64,
     leader_seen_timeout: u64,
 }
 
 impl Follower {
-    pub fn new(leader: Option<String>, voted: Option<String>, leader_seen_timeout: u64) -> Self {
+    pub fn new(leader: Option<String>, leader_seen_timeout: u64) -> Self {
         log_raft(
             RaftLogType::NewRole { new_role: "follower".to_string() }
         );
         Self {
             leader,
-            voted,
             leader_seen_ticks: 0,
             leader_seen_timeout,
         }
@@ -41,31 +39,58 @@ impl Role<Follower> {
                 if self.is_leader(&msg.from) {
                     match entries {
                         None => {},
-                        // todo: implement safe appending, 
-                        // avoiding duplicated entries and keep ordering
                         Some(entries) => { 
                             log_raft(
                                 RaftLogType::LogAppend { entry: entries.clone() }
                             );
-                            self.log.append(entries)
+
+                            let last_index = self.log.entries.last().map_or(0, |entry| entry.index);
+                            let valid_entries: Vec<Entry> = entries.iter()
+                                .filter_map(|new_entry| {
+                                    if new_entry.index > last_index {
+                                        Some(Entry {
+                                            request_id: None,
+                                            command: new_entry.command.clone(),
+                                            index: new_entry.index,
+                                            term: new_entry.term
+                                        })
+                                    } else {
+                                        log_raft(RaftLogType::Error { 
+                                            message: format!("Duplicate or out of order entry detected: {:?}", new_entry)
+                                        });
+                                        None
+                                    }
+                                }).collect();
+
+                            self.log.append(valid_entries)
                         }
                     };
 
                     // todo: implement safe commiting, 
-                    // verify if the index are stored in Log,
-                    // should i implement this on Log struct?
+                    // verify if the index are stored in Log to avoid
+                    // commiting entries that are not present in Log.entries
                     if commit_index > self.log.commit_index {
                         log_raft(
                             RaftLogType::LogCommit { index: commit_index }
                         );
 
-                        self.log.commit(commit_index);
+                        for i in (self.log.commit_index)..=commit_index {
+                            if let Some(entry) = self.log.entries.get(i) {
+                                self.state_tx.send(entry.clone()).unwrap();
+                                self.log.commit(entry.index);
+                            }
+                        }
                     };
 
                     let leader = match msg.from {
                         Address::Peer(id) => id,
-                        // todo: dont panic!(), just log
-                        _ => panic!("Unexpected msg.from value")
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Unexpected leader address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+                        }
                     };
                     // todo: fix this, send ack only if entries != None
                     let ack = Message::new(
@@ -104,16 +129,76 @@ impl Role<Follower> {
 
                             return Ok(self.follow(Address::Peer(sender)))
                         }
-                        // todo: dont panic!(), just log
-                        _ => panic!("Unexpected sender address"),
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Receiving message from unexpected address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+
+                        } 
                     };
                 }
             },
             Event::Vote { voted_for: _ } => {},
-            _ => { 
+            Event::StateResponse { request_id, result } => {
+                if let Some(request_id) = request_id {
+                    let result = match result {
+                        Ok(r) => r,
+                        Err(_) => "error on state_machine".to_string()
+                    };
+
+                    let response = NodeResponse {
+                        request_id,
+                        response_type: NodeResponseType::Result { result }
+                    };
+
+                    self.outbound_tx.send(response).unwrap();
+
+                    return Ok(self.into())
+                };
+            },
+            Event::ClientRequest { request_id, command } => {
+                let _command: Vec<&str> = command
+                    .strip_suffix("\r\n")
+                    .or(command.strip_suffix("\n"))
+                    .unwrap_or(&command)
+                    .split(" ").collect();
+
+                if _command[0] == "list" || _command[0] == "get" {
+                    let entry = Entry { 
+                        request_id: Some(request_id),
+                        index: self.log.last_index,
+                        term: self.log.last_term, 
+                        command 
+                    };
+
+                    self.state_tx.send(entry.clone()).unwrap();
+                } else {
+                    match self.role.leader {
+                        None => {
+                            let response = NodeResponse {
+                                request_id,
+                                response_type: NodeResponseType::NoLeader
+                            };
+                            self.outbound_tx.send(response).unwrap();
+                        },
+                        Some(ref leader) => {
+                            let _addr: Vec<&str> = leader.split(":").collect();
+                            let _addr = format!("{}:{}", _addr[0], CONFIG.server.outbound_port);
+                            let response = NodeResponse {
+                                request_id,
+                                response_type: NodeResponseType::Redirect { address: _addr }
+                            };
+                            self.outbound_tx.send(response).unwrap();
+                        }
+                    }
+                }
+            }
+            msg => { 
                 log_raft(
                     RaftLogType::Error 
-                        { content: "receiving undefined message event".to_string() }
+                        { message: format!("Receiving undefined message event: {:?}", msg) }
                 );
             }
         };
@@ -164,8 +249,13 @@ impl Role<Follower> {
     fn follow(self, leader: Address) -> Node {
         let address = match leader {
             Address::Peer(addr) => addr,
-            // todo: dont panic!(), just log
-            _ => panic!("Expected leader to be an Peer Address"),
+            addrs => {
+                log_raft(RaftLogType::Error { 
+                    message: format!("Trying to follow an invalid peer address: {:?}", addrs)
+                });
+
+                return self.into()
+            } 
         };
 
         log_raft(
@@ -174,7 +264,6 @@ impl Role<Follower> {
 
         let follower = self.become_role(Follower::new(
             Some(address),
-            None,
             CONFIG.raft.leader_seen_timeout,
         ));
         follower.into()
@@ -204,7 +293,7 @@ mod tests {
             node_tx,
             state_tx,
             outbound_tx,
-            role: Follower::new(Some("a".into()), None, 2),
+            role: Follower::new(Some("a".into()), 2),
         };
 
         (follower, node_rx, state_rx)
@@ -313,7 +402,7 @@ mod tests {
 
     #[tokio::test]
     async fn follower_must_append_logs_then_update_commit_index() {
-        let (mut follower, _node_rx, _) = setup();
+        let (mut follower, _node_rx, _state_rx) = setup();
         follower.role.leader = Some(String::from("a"));
 
         let entries = vec!(
@@ -334,7 +423,7 @@ mod tests {
             term: 1,
             from: Address::Peer("a".to_string()),
             to: Address::Broadcast,
-            event: Event::AppendEntries { entries: Some(entries), commit_index: 0 }
+            event: Event::AppendEntries { entries: Some(entries), commit_index: 1 }
         };
         let follower = follower.step(append_entries).unwrap();
 
@@ -350,7 +439,7 @@ mod tests {
                 assert_eq!(follower.log.last_term, 1);
                 assert_eq!(follower.log.entries[0].command, "command1");
                 assert_eq!(follower.log.entries[1].command, "command2");
-                assert_eq!(follower.log.commit_index, 1);
+                assert_eq!(follower.log.commit_index, 2);
             },
             _ => panic!("Expected node to be Follower")
         };

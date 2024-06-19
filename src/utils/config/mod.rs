@@ -5,7 +5,15 @@ use std::io::Read;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub server: ServerConfig,
     pub raft: RaftConfig,
+    pub storage: StorageConfig
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ServerConfig {
+    pub raft_port: u16,
+    pub outbound_port: u16
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -15,6 +23,12 @@ pub struct RaftConfig {
     pub candidate_election_timeout: u64,
     pub candidate_election_timeout_rand: u64,
     pub leader_idle_timeout: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct StorageConfig {
+    pub max_memtable_size: usize,
+    pub data_path: String
 }
 
 pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {

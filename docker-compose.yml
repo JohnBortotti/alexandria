@@ -4,8 +4,8 @@ services:
     build:
       context: .
     environment:
-      - PEER_ADDR=192.30.0.101:8080
-      - PEERS=192.30.0.102:8080,192.30.0.103:8080
+      - PEER_ADDR=192.30.0.101
+      - PEERS=192.30.0.102,192.30.0.103
     networks:
       raft_network:
         ipv4_address: 192.30.0.101
@@ -13,12 +13,13 @@ services:
       - "8081:8080"
     volumes:
       - ./logs/peer1/:/usr/src/raft/logs/
+      - ./db-data/peer1/:/usr/src/raft/db-data/
 
   peer2:
     image: alexandria-image
     environment:
-      - PEER_ADDR=192.30.0.102:8080
-      - PEERS=192.30.0.101:8080,192.30.0.103:8080
+      - PEER_ADDR=192.30.0.102
+      - PEERS=192.30.0.101,192.30.0.103
     networks:
       raft_network:
         ipv4_address: 192.30.0.102
@@ -26,12 +27,13 @@ services:
       - "8082:8080"
     volumes:
       - ./logs/peer2/:/usr/src/raft/logs/
+      - ./db-data/peer2/:/usr/src/raft/db-data/
 
   peer3:
     image: alexandria-image
     environment:
-      - PEER_ADDR=192.30.0.103:8080
-      - PEERS=192.30.0.101:8080,192.30.0.102:8080
+      - PEER_ADDR=192.30.0.103
+      - PEERS=192.30.0.101,192.30.0.102
     networks:
       raft_network:
         ipv4_address: 192.30.0.103
@@ -39,6 +41,7 @@ services:
       - "8083:8080"
     volumes:
       - ./logs/peer3/:/usr/src/raft/logs/
+      - ./db-data/peer3/:/usr/src/raft/db-data/
 
 networks:
   raft_network:

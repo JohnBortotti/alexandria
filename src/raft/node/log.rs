@@ -33,10 +33,6 @@ impl Log {
         });
     }
 
-    // todo: implement commit function
-    // - run the entry on state_machine
-    // - if everything runs ok, then mark entry as commited
-    // - update the log commit_index
     pub fn commit(&mut self, index: usize) {
         self.commit_index = index;
     }

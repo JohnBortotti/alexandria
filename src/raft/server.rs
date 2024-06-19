@@ -5,7 +5,7 @@ use super::{
     node,
     node::log::Log
 };
-use crate::utils::config::CONFIG;
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 use std::{ 
     io::prelude::*, 
     collections::hash_map::HashMap, 
@@ -22,11 +22,22 @@ use tokio::{
 use tokio_stream::wrappers::{TcpListenerStream, UnboundedReceiverStream};
 use tokio_stream::StreamExt as _;
 
+pub enum NodeResponseType {
+    Redirect { address: String },
+    Result { result: String },
+    NoLeader
+}
+
+pub struct NodeResponse {
+    pub request_id: u64,
+    pub response_type: NodeResponseType
+}
+
 pub struct Server {
     node: node::Node,
     peers: Vec<String>,
     node_rx: UnboundedReceiver<message::Message>,
-    outbound_rx: UnboundedReceiver<(u64, String)>,
+    outbound_rx: UnboundedReceiver<NodeResponse>,
     connection_table: Arc<Mutex<HashMap<u64, tokio::net::TcpStream>>>,
 }
 
@@ -34,8 +45,15 @@ impl Server {
     pub async fn new(id: &str, peers: Vec<String>, log: Log) -> Self {
         let (node_tx, node_rx) = unbounded_channel();
         let (outbound_tx, outbound_rx) = unbounded_channel();
+
+        let id = format!("{}:{}", id, CONFIG.server.raft_port);
+        let peers: Vec<String> = peers
+            .into_iter()
+            .map(|peer| format!("{}:{}", peer, CONFIG.server.raft_port))
+            .collect();
+
         Self {
-            node: node::Node::new(id, peers.clone(), log, node_tx, outbound_tx).await,
+            node: node::Node::new(&id, peers.clone(), log, node_tx, outbound_tx).await,
             peers,
             node_rx,
             outbound_rx,
@@ -58,26 +76,36 @@ impl Server {
 /*
  * Isn't this overcomplex?
  *
- * 1. client sends request to port 5000
+ * 1. user sends TCP request to port 5000
  *
- * 2. receiving_outbound_tcp will handle this request:
- *   - register the socket on connection_table
- *   - send the message to node_inbound_tx
+ * 2. receiving_outbound_tcp() will handle this request:
+ *   - register the socket on connection_table <HashMap<u64, TcpStream>>
+ *   - send the message to node_inbound_tx <raft::Message>
  *
  * 3. this message will be handled by event_loop:
- *   - event loop will execute the message on node.step()
+ *   - event loop will send the Message to node via on node.step(msg)
  *   - node will handle the message:
- *      - ClientRequest will append a new log entry
- *      - leader will replicate this entry and then commit with state_tx.send(entry)
- *      - state will run the query and commit the result on node_tx.send(StateResult..)
- *      - node will handle the StateResult message, verify and send on outbound_tx channel
- *   - the event loop will then handle the response_rx cahnnel, match the request_id with current
- *      open requests and return the result over tcp
+ *      - if the node is a leader:
+ *        - append the command on log entry
+ *        - replicate this entry and then commit with state_tx.send(entry)
+ *        - state will run the query and return the result on node_tx.send(raft::StateResponse)
+ *        - the node will handle the StateResponse and return to outbound_tx channel
+ *        - the event loop will receive this message via response_rx, match the request_id with
+ *          open requests and answer the user request
+ *      - if the node is a follower:
+ *        - if the command is "READ":
+ *          - send the command to run on state_machine
+ *          - state will run the query and return the result on node_tx.send(raft::StateResponse)
+ *          - the node will handle the StateResponse and return to outbound_tx channel
+ *        - if the command is "WRITE":
+ *          - return a redirect message to outbound_tx channel
+ *          - the event loop will receive this message and return a redirect response
+ *
 */
     async fn event_loop(
         mut node: node::Node,
         tcp_inbound_rx: UnboundedReceiver<message::Message>,
-        response_rx: UnboundedReceiver<(u64, String)>,
+        response_rx: UnboundedReceiver<NodeResponse>,
         connection_table: Arc<Mutex<HashMap<u64, tokio::net::TcpStream>>>,
         ticks: u64,
     ) -> Result<(), &'static str> {
@@ -92,20 +120,57 @@ impl Server {
                 Some(response) = response_rx.next() => {
                             let socket = {
                                 let mut map = connection_table.lock().unwrap();
-                                map.remove(&response.0)
+                                map.remove(&response.request_id)
                             };
 
-                            let status_line = "HTTP/1.1 200 OK\r\n";
-                            let content_length = format!("Content-Length: {}\r\n", response.1.len());
-                            let headers = "Content-Type: text/plain\r\n\r\n";
-                            let response = 
-                                format!("{}{}{}{}",
-                                        status_line, content_length, headers, response.1);
+                            match response.response_type {
+                                NodeResponseType::Redirect { address } => {
+                                        let status_line = "HTTP/1.1 307 Temporary Redirect\r\n";
+                                        let headers = format!("Location: http://{}\r\nContent-Length: 0\r\n\r\n", address);
+                                        let response = format!("{}{}", status_line, headers);
 
-                            if let Some(mut socket) = socket {
-                                if let Err(err) = 
-                                    socket.write_all(response.as_bytes()).await {
-                                    eprintln!("Failed to write response to socket: {:?}", err);
+                                        if let Some(mut socket) = socket {
+                                            if let Err(err) = 
+                                                socket.write_all(response.as_bytes()).await {
+                                                    log_raft(RaftLogType::Error { 
+                                                        message: format!("Failed to write response on socket: {:?}", err)
+                                                    });
+                                                }
+                                        }
+
+                                },
+                                NodeResponseType::Result { result } => {
+                                    let status_line = "HTTP/1.1 200 OK\r\n";
+                                    let content_length = format!("Content-Length: {}\r\n", result.len());
+                                    let headers = "Content-Type: text/plain\r\n\r\n";
+                                    let response = format!("{}{}{}{}", status_line, content_length, headers, result);
+
+                                    if let Some(mut socket) = socket {
+                                        if let Err(err) = 
+                                            socket.write_all(response.as_bytes()).await {
+                                                log_raft(RaftLogType::Error { 
+                                                    message: format!("Failed to write response on socket: {:?}", err)
+                                                });
+                                            }
+                                    }
+
+                                },
+                                NodeResponseType::NoLeader => {
+                                    let body = "Raft leader has not been elected yet";
+                                    let status_line = "HTTP/1.1 503 Service Unavailable\r\n";
+                                    let content_length = format!("Content-Length: {}\r\n", body.len());
+                                    let headers = "Content-Type: text/plain\r\n\r\n";
+                                    let response = format!("{}{}{}{}", status_line, content_length, headers, body);
+
+                                    if let Some(mut socket) = socket {
+                                        if let Err(err) = 
+                                            socket.write_all(response.as_bytes()).await {
+                                                log_raft(RaftLogType::Error { 
+                                                    message: format!("Failed to write response on socket: {:?}", err)
+                                                });
+                                            }
+                                    }
+
                                 }
                             }
                 }
@@ -121,7 +186,7 @@ impl Server {
         let mut listener = TcpListenerStream::new(outbound_tcp_listener);
         let mut request_id: u64 = 0;
 
-        while let Some(socket) = listener.try_next().await? {
+        while let Some(mut socket) = listener.try_next().await? {
             let tcp_inbound_tx = tcp_inbound_tx.clone();
             let connection_table = Arc::clone(&connection_table);
             request_id += 1;
@@ -133,20 +198,29 @@ impl Server {
                 match socket.try_read(&mut buffer) {
                     Ok(bytes_read) => {
                         let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
+
                         let req_body: Vec<&str> =
                             req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                         if req_body.get(1).is_none() {
-                            panic!("message incorrect");
+                            let status_line = "HTTP/1.1 400 Bad Request\r\n";
+                            let headers = "Content-Type: text/plain\r\n\r\n";
+                            let body = "Empty request, please provide a valid command";
+                            let res = format!("{}{}{}", status_line, headers, body);
+
+                            if let Err(err) = 
+                                socket.write_all(res.as_bytes()).await {
+                                    log_raft(RaftLogType::Error { 
+                                        message: format!("Failed to write response on socket: {:?}", err)
+                                    });
+                                }
+                            
+                            return
                         };
 
-                        // todo: create the message from scratch,
-                        // todo: change the outbound_node_tx channel since the message is not a
-                        // raft_message packet
-                        // set the payload and add the request_id
                         let user_command = format!("{}\n", req_body[1]);
                         let msg = message::Message::new(
-                            1,
+                            0,
                             message::Address::Client,
                             message::Address::Peer("test".to_string()),
                             Event::ClientRequest { 
@@ -160,7 +234,11 @@ impl Server {
 
                         tcp_inbound_tx.send(msg).unwrap();
                     },
-                    Err(..) => {}
+                    Err(err) => {
+                        log_raft(RaftLogType::Error { 
+                            message: format!("Error while reading socket: {:?}", err)
+                        });
+                    }
                 }
             });
         }
@@ -180,15 +258,30 @@ impl Server {
 
             match socket.try_read(&mut buffer) {
                 Ok(bytes_read) => {
-                    let req_text = String::from_utf8(buffer[..bytes_read].to_vec()).unwrap();
+                    let req_text = match String::from_utf8(buffer[..bytes_read].to_vec()) {
+                        Ok(text) => text,
+                        Err(e) => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Error decoding UTF-8: {:?}", e)
+                            });
 
-                    // todo:
-                    // add validation to incoming messages
+                            let res = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                            let _ = socket.try_write(res.as_bytes());
+                            return Ok(());
+                        }
+                    };
+
                     let req_body: Vec<&str> =
                         req_text.lines().skip_while(|x| !x.is_empty()).collect();
 
                     if req_body.get(1).is_none() {
-                        panic!("message incorrect");
+                        log_raft(RaftLogType::Error { 
+                            message: format!("Malformed incoming request: {:?}", req_body)
+                        });
+
+                        let res = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                        let _ = socket.try_write(res.as_bytes());
+                        return Ok(());
                     };
 
                     let parsed_msg: message::Message = ron::from_str(req_body[1]).unwrap();
@@ -198,8 +291,10 @@ impl Server {
                     let res = "HTTP/1.1 200 OK\r\n";
                     let _ = socket.try_write(res.as_bytes());
                 }
-                Err(..) => {
-                    // todo: log this error
+                Err(err) => {
+                    log_raft(RaftLogType::Error { 
+                        message: format!("Error while reading socket: {:?}", err)
+                    });
                 }
             }
         }
@@ -236,9 +331,10 @@ impl Server {
                         }
                     };
                 },
-                x => {
-                    // todo: dont panic! just log and try to keep running
-                    panic!("Invalid message sender:{:?}", x)
+                addr => {
+                    log_raft(RaftLogType::Error { 
+                        message: format!("Invalid message sender: {:?}", addr)
+                    });
                 }
             }
         }

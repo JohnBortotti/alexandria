@@ -1,11 +1,7 @@
 use serde::Serialize;
-use super::{message::Message, node::log::Entry };
+use crate::raft::{message::Message, node::log::Entry};
 use log::info;
 
-/* todo
- * update this log interface, 
- * add warn and error level
-*/
 #[derive(Serialize)]
 pub enum RaftLogType {
     PeerStart { id: String, peers: Vec<String> },
@@ -15,7 +11,7 @@ pub enum RaftLogType {
     SendingMessage { message: Message },
     LogAppend { entry: Vec<Entry> },
     LogCommit { index: usize },
-    Error { content: String },
+    Error { message: String },
 }
 
 #[derive(Serialize)]
@@ -23,7 +19,6 @@ pub struct RaftLog {
     log_type: RaftLogType 
 }
 
-// this function must be use only for raft nodes
 pub fn log_raft(log_type: RaftLogType) {
     let log_entry = RaftLog { log_type };
     info!("{}", ron::to_string(&log_entry).unwrap());

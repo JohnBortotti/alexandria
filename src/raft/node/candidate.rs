@@ -1,9 +1,8 @@
 use super::super::{
     message::Address, message::Event, message::Message,
-    logging::{log_raft, RaftLogType}
 };
 use super::{follower::Follower, leader::Leader, Node, Role };
-use crate::utils::config::CONFIG;
+use crate::utils::{config::CONFIG, log::{log_raft, RaftLogType}};
 use rand::Rng;
 
 pub struct Candidate {
@@ -42,9 +41,13 @@ impl Role<Candidate> {
                 if msg.term >= self.log.last_term {
                     let address = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
-                        // todo:
-                        // dont panic!(), just log
-                        _ => panic!("Unexpected Address"),
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Receiving message from unexpected address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+                        } 
                     };
 
                     log_raft(
@@ -54,7 +57,6 @@ impl Role<Candidate> {
                     Ok(self
                         .become_role(Follower::new(
                             Some(address),
-                            None,
                             CONFIG.raft.leader_seen_timeout,
                         ))
                         .into())
@@ -66,8 +68,14 @@ impl Role<Candidate> {
                 if msg.term > self.log.last_term {
                     let from = match msg.from {
                         Address::Peer(addr) => addr.to_string(),
-                        // todo: dont panic!(), just log
-                        _ => panic!("Unexpected Address"),
+                        addr => {
+                            log_raft(RaftLogType::Error { 
+                                message: format!("Receiving message from unexpected address: {:?}", addr)
+                            });
+
+                            return Ok(self.into())
+
+                        }
                     };
 
                     let vote_msg = Message::new(
@@ -94,7 +102,6 @@ impl Role<Candidate> {
                     Ok(self
                         .become_role(Follower::new(
                             Some(from),
-                            None,
                             CONFIG.raft.leader_seen_timeout,
                         ))
                         .into())
@@ -105,12 +112,7 @@ impl Role<Candidate> {
             Event::Vote { voted_for } => {
                 if voted_for == self.id {
                     self.role.votes += 1;
-
-                    // todo:
-                    // check this rule,
-                    // i guess it can become leader with 
-                    // majority of votes instead of all votes
-                    if self.role.votes >= self.peers.len() as u64 {
+                    if self.role.votes >= (self.peers.len()/2) as u64 {
                         let peers = self.peers.clone();
                         Ok(self
                            .become_role(Leader::new(peers, CONFIG.raft.leader_idle_timeout))
@@ -122,11 +124,11 @@ impl Role<Candidate> {
                     Ok(self.into())
                 }
             },
-            _ => { 
-                log_raft(
-                    RaftLogType::Error 
-                        { content: "receiving undefined message event".to_string() }
-                );
+            msg => { 
+                log_raft(RaftLogType::Error { 
+                    message: format!("receiving undefined message event: {:?}", msg) 
+                });
+
                 Ok(self.into()) 
             }
         }
