@@ -1,0 +1,13 @@
+Starting write test...
+
+Total write time: 1115 ms
+Total successful writes: 100
+Average write time: 11 ms
+Write test completed.
+
+Starting read test...
+
+Total read time: 828 ms
+Total successful reads: 100
+Average read time: 8 ms
+Read test completed.
