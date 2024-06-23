@@ -1,6 +1,11 @@
 #!/bin/bash
 
-DB_URL="192.30.101:5000" 
+# todo:
+# provide concurrent read 
+# provide concurrent write? and how?
+# test how much bloom filter increase read time
+
+DB_URL="192.30.103:5000" 
 COLLECTION_NAME="test"
 NUM_REQUESTS=100
 
@@ -56,12 +61,10 @@ read_test() {
 
 benchmark() {
   echo "Starting write test..."
-  echo ""
   write_test
   echo "Write test completed."
   echo ""
   echo "Starting read test..."
-  echo ""
   read_test
   echo "Read test completed."
 }
