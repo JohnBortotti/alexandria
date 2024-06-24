@@ -1,6 +1,11 @@
 mod lsm;
 
-use std::{collections::HashMap, path::PathBuf, fs::read_dir, fs::create_dir_all};
+use std::{
+    collections::HashMap,
+    path::PathBuf, 
+    fs::{read_dir, create_dir_all},
+    sync::{Arc, RwLock}
+};
 use chrono::Utc;
 use lsm::TableEntry;
 use serde::{Deserialize, Serialize};
@@ -17,7 +22,7 @@ pub enum Command {
 
 pub struct Engine {
     root_path: PathBuf,
-    collections: HashMap<String, lsm::Lsm>,
+    collections: Arc<RwLock<HashMap<String, Arc<RwLock<lsm::Lsm>>>>>,
 }
 
 impl Engine {
@@ -36,8 +41,12 @@ impl Engine {
                             if let Some(folder_name_str) = folder_name.to_str() {
                                 let collection = lsm::Lsm::new(
                                     path,
-                                    CONFIG.storage.max_memtable_size).unwrap();
-                                collections.insert(folder_name_str.to_string(), collection);
+                                    CONFIG.storage.max_memtable_size)
+                                    .unwrap();
+                                collections.insert(
+                                    folder_name_str.to_string(), 
+                                    Arc::new(RwLock::new(collection))
+                                    );
                             }
                         }
                     }
@@ -47,17 +56,18 @@ impl Engine {
 
         Self { 
             root_path: root_path.clone(),
-            collections,
+            collections: Arc::new(RwLock::new(collections)),
         }
     }
 
-    fn new_collection(&mut self, collection_name: &str) -> Result<(), std::io::Error> {
+    fn new_collection(&self, collection_name: &str) -> Result<(), std::io::Error> {
         let mut path = PathBuf::from(&self.root_path);
         path.push(collection_name);
         create_dir_all(&path)?;
 
         let collection = lsm::Lsm::new(path, CONFIG.storage.max_memtable_size).unwrap();
-        self.collections.insert(collection_name.to_string(), collection);
+        let mut collections = self.collections.write().unwrap();
+        collections.insert(collection_name.to_string(), Arc::new(RwLock::new(collection)));
 
         Ok(())
     }
@@ -140,7 +150,7 @@ impl Engine {
             )
     }
 
-    pub fn run_command(&mut self, query: String) -> Result<Option<String>, std::io::Error> {
+    pub async fn run_command(&self, query: String) -> Result<Option<String>, std::io::Error> {
         let command = match Engine::parse_string_to_command(query) {
             Ok(x) => x,
             Err(e) => return Err(e)
@@ -148,37 +158,44 @@ impl Engine {
 
         match command {
             Command::ListCollections => {
+                let collections = self.collections.read().unwrap();
                 return Ok(Some(
                         format!("Collections: {:?}",
-                                self.collections.keys().collect::<Vec<&String>>())
+                                collections.keys().collect::<Vec<&String>>())
                         ))
             },
             Command::CreateCollection { collection } => {
-                if self.collections.contains_key(&collection) {
+                let collections = self.collections.read().unwrap();
+                if collections.contains_key(&collection) {
                     return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
                             format!("Collection '{}' already exists", collection)))
                 };
+                drop(collections);
 
                 self.new_collection(&collection)?;
                 return Ok(Some(format!("Collection created: '{}'", collection)))
             },
             Command::GetEntry { collection, key } => {
-                let _collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
-                    Some(collection) => collection,
+                let collection = match self.collections.read().unwrap().get(&collection) {
+                    Some(collection) => Arc::clone(collection),
                     None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
-                match _collection.search(&Vec::try_from(key).unwrap()) {
-                    Err(msg) => Err(msg),
-                    Ok(res) => match res {
-                        None => Ok(None),
-                        Some(entry) => Ok(Some(Engine::entry_to_string(entry))),
-                    }
+
+                let result = tokio::task::spawn_blocking(move || {
+                    let collection = collection.read().unwrap();
+                    collection.search(&Vec::try_from(key).unwrap())
+                })
+                .await??;
+
+                match result {
+                    None => Ok(None),
+                    Some(entry) => Ok(Some(Engine::entry_to_string(entry))),
                 }
             },
             Command::CreateEntry { collection, key, value } => {
-                let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
-                    Some(collection) => collection,
+                let collection = match self.collections.read().unwrap().get(&collection) {
+                    Some(collection) => Arc::clone(collection),
                     None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
 
@@ -190,19 +207,19 @@ impl Engine {
                     value: Some(value.into()),
                     timestamp
                 };
+                let _entry = entry.clone();
 
-                collection.write(entry).unwrap();
-                match collection.search(&Vec::try_from(key).unwrap()) {
-                    Err(msg) => Err(msg),
-                    Ok(res) => match res {
-                        None => Ok(None),
-                        Some(entry) => Ok(Some(Engine::entry_to_string(entry)))
-                    }
-                }
+                let _ = tokio::task::spawn_blocking(move || {
+                    let mut collection = collection.write().unwrap();
+                    collection.write(entry)
+                })
+                .await??;
+
+                return Ok(Some(Engine::entry_to_string(_entry)))
             },
             Command::DeleteEntry { collection, key } => {
-                let collection: &mut lsm::Lsm = match self.collections.get_mut(&collection) {
-                    Some(collection) => collection,
+                let collection = match self.collections.read().unwrap().get(&collection) {
+                    Some(collection) => Arc::clone(collection),
                     None => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid collection"))
                 };
 
@@ -215,7 +232,11 @@ impl Engine {
                     timestamp
                 };
 
-                collection.write(entry).unwrap();
+                let _ = tokio::task::spawn_blocking(move || {
+                    let mut collection = collection.write().unwrap();
+                    collection.write(entry)
+                })
+                .await??;
 
                 Ok(Some(format!("Key '{}' deleted", key)))
             }

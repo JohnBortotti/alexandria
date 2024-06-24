@@ -7,7 +7,7 @@ import pycurl
 from multiprocessing import Pool
 
 DB_URLS = ["http://192.30.0.101:5000", "http://192.30.0.102:5000", "http://192.30.0.103:5000"]
-COLLECTION_NAME = "test5"
+COLLECTION_NAME = "benchmark"
 NUM_REQUESTS = 5000
 CONCURRENT_READS = 30
 
