@@ -1,13 +1,18 @@
-Starting write test...
+Starting benchmark...
+requests: 5000
+read threads: 30
+collection: test5
 
-Total write time: 1115 ms
-Total successful writes: 100
-Average write time: 11 ms
+Creating collection...
+
+Starting write test...
+Total write time: 11.83 s
+Total successful writes: 5000
 Write test completed.
 
 Starting read test...
-
-Total read time: 828 ms
-Total successful reads: 100
-Average read time: 8 ms
+Total function time: 2.11 s
+Total threading time: 1.81 s
+Total successful reads: 5000
 Read test completed.
+
