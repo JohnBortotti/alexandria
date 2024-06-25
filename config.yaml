@@ -2,11 +2,11 @@ server:
   raft_port: 8080
   outbound_port: 5000
 raft:
-  tick_millis_duration: 150
-  leader_seen_timeout: 5
+  tick_millis_duration: 100
+  leader_seen_timeout: 10
   candidate_election_timeout: 5
   candidate_election_timeout_rand: 6
-  leader_idle_timeout: 4
+  leader_idle_timeout: 2
 storage:
-  max_memtable_size: 262144
+  max_memtable_size: 512000
   data_path: "./db-data"
