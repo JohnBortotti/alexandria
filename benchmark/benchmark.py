@@ -12,8 +12,7 @@ def generate_random_string(length):
 DB_URLS = ["http://192.30.0.101:5000", "http://192.30.0.102:5000", "http://192.30.0.103:5000"]
 COLLECTION_NAME = "benchmark-" + generate_random_string(5)
 
-WRITE_REQUESTS = 100 
-WRITE_THREADS = 1
+WRITE_REQUESTS = 1000
 
 READ_REQUESTS = 20000
 READ_THREADS = 1000
@@ -107,7 +106,6 @@ def read_test():
 def benchmark():
     print("Starting benchmark...")
     print("write requests:", WRITE_REQUESTS);
-    print("write threads:", WRITE_THREADS)
     print("read requests:", READ_REQUESTS);
     print("read threads:", READ_THREADS)
     print("collection:", COLLECTION_NAME)
