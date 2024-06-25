@@ -284,7 +284,10 @@ impl Server {
                         return Ok(());
                     };
 
-                    let parsed_msg: message::Message = ron::from_str(req_body[1]).unwrap();
+                    let parsed_msg: message::Message = match ron::from_str(req_body[1]) {
+                        Ok(msg) => msg,
+                        Err(e) => panic!("error on parsing message: {}, error: {}", req_body[1], e)
+                    };
                     tcp_tr.send(parsed_msg).unwrap();
 
                     let _ = &socket.writable();

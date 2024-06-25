@@ -9,7 +9,7 @@ use super::{message::{Message, Address, Event},
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt as _;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 pub struct StateMachine {
     state_rx: UnboundedReceiverStream<Entry>,
