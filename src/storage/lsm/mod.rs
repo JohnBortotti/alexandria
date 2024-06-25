@@ -2,13 +2,13 @@ mod memtable;
 mod wal;
 mod sstable;
 
-
 use std::{
     fs::{read_dir, remove_file},
     path::Path,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH}
 };
+
 /*
  *   LSM Pipeline  
  *

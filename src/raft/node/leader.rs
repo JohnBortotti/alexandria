@@ -64,8 +64,34 @@ impl Role<Leader> {
 
                 self.node_tx.send(msg).unwrap();
             } else {
-                let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
-                let msg = Message::new(
+                let available_logs_count = (self.log.last_index - peer_last_index) as usize;
+                // todo:
+                // config this via config.yaml
+                let chunk_size = 8;
+                if available_logs_count > chunk_size {
+                    let mut logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
+
+                    while !logs.is_empty() {
+                        let chunk: Vec<Entry> = logs.drain(..chunk_size.min(logs.len())).collect();
+
+                        let msg = Message::new(
+                            self.log.last_term,
+                            Peer(self.id.clone()),
+                            Peer(String::from(peer)),
+                            Event::AppendEntries { 
+                                entries: Some(chunk), 
+                                commit_index: self.log.commit_index 
+                            }
+                            );
+
+                        log_raft(RaftLogType::SendingMessage { message: msg.clone() });
+
+                        self.node_tx.send(msg).unwrap();
+                    }
+                } else {
+                    let logs = self.log.entries.get(peer_last_index+0..).unwrap().to_vec();
+
+                    let msg = Message::new(
                         self.log.last_term,
                         Peer(self.id.clone()),
                         Peer(String::from(peer)),
@@ -74,11 +100,12 @@ impl Role<Leader> {
                             commit_index: self.log.commit_index 
                         });
 
-                log_raft(
-                    RaftLogType::SendingMessage { message: msg.clone() }
-                );
+                    log_raft(
+                        RaftLogType::SendingMessage { message: msg.clone() }
+                        );
 
-                self.node_tx.send(msg).unwrap();
+                    self.node_tx.send(msg).unwrap();
+                }
             }
         };
 
