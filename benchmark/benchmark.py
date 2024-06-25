@@ -6,13 +6,17 @@ import string
 import pycurl
 from multiprocessing import Pool
 
-DB_URLS = ["http://192.30.0.101:5000", "http://192.30.0.102:5000", "http://192.30.0.103:5000"]
-COLLECTION_NAME = "benchmark"
-NUM_REQUESTS = 5000
-CONCURRENT_READS = 30
-
 def generate_random_string(length):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+DB_URLS = ["http://192.30.0.101:5000", "http://192.30.0.102:5000", "http://192.30.0.103:5000"]
+COLLECTION_NAME = "benchmark-" + generate_random_string(5)
+
+WRITE_REQUESTS = 100 
+WRITE_THREADS = 1
+
+READ_REQUESTS = 20000
+READ_THREADS = 1000
 
 def send_request(url, data):
     buffer = io.BytesIO()
@@ -66,7 +70,7 @@ def read_operation(url):
 def write_test():
     total_time = 0.0
     success_count = 0
-    for _ in range(NUM_REQUESTS):
+    for _ in range(WRITE_REQUESTS):
         duration, status_code = write_operation(DB_URLS[0])
         if duration is not None and status_code is not None and status_code == 200:
             total_time += duration
@@ -80,9 +84,9 @@ def read_test():
     success_count = 0
     individual_times = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=CONCURRENT_READS) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=READ_THREADS) as executor:
         start_time = time.perf_counter()
-        futures = [executor.submit(read_operation, DB_URLS[0]) for _ in range(NUM_REQUESTS)]
+        futures = [executor.submit(read_operation, DB_URLS[0]) for _ in range(READ_REQUESTS)]
         future_start_time = time.perf_counter()
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -102,17 +106,17 @@ def read_test():
 
 def benchmark():
     print("Starting benchmark...")
-    print("requests:", NUM_REQUESTS);
-    print("read threads:", CONCURRENT_READS)
+    print("write requests:", WRITE_REQUESTS);
+    print("write threads:", WRITE_THREADS)
+    print("read requests:", READ_REQUESTS);
+    print("read threads:", READ_THREADS)
     print("collection:", COLLECTION_NAME)
     print()
 
-    print("Creating collection...")
     res = new_collection()
     if res != 200:
       exit()
-    print("")
-    
+
     print("Starting write test...")
     write_test()
     print("Write test completed.")
