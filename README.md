@@ -28,8 +28,6 @@ some requests to leader)
 
 ## todo
 
-- [ ] implement benchmarking
-- [ ] handle concurrent access to storage
 - [ ] implement bloom filter on storage
-- [ ] update storage underlying structure (btree)
+- [ ] update storage underlying structure
 - [ ] implement sstable compression
