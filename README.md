@@ -6,11 +6,6 @@
 
 **Alexandria** is a raft-based distributed key-value database from scratch.
 
-## disclaimer
-
-this personal project is intended for study and learning purposes 
-and is currently a work in progress.
-
 ## usage
 
 1. check configuration at `config.yaml`
