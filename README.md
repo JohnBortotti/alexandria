@@ -1,7 +1,5 @@
 # Alexandria
 
-## description
-
 **Alexandria** is a raft-based distributed key-value database from scratch.
 
 ## usage
