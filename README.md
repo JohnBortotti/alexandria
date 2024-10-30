@@ -1,5 +1,3 @@
-![The School of Athens](https://gcdnb.pbrd.co/images/4CoyyLWfkAKa.png?o=1)
-
 # Alexandria
 
 ## description
